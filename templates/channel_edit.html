@@ -67,6 +67,11 @@
 
       <fieldset>
         <legend>Анонс следующего файла (bumper)</legend>
+        <p class="muted small">
+          Полноэкранный 5-секундный анонс с миниатюрой и именем файла
+          перед каждым видео. <strong>Не зависит от preview</strong>
+          (preview — текст в углу, bumper — полный экран).
+        </p>
         <label class="checkbox-label">
           <input type="checkbox" name="bumper_enabled"
                  {% if channel.bumper_enabled %}checked{% endif %}>
@@ -76,6 +81,12 @@
           <input name="bumper_duration_sec" type="number" min="2" max="15"
                  value="{{ channel.bumper_duration_sec }}">
         </label>
+        <p class="muted small">
+          ⚠ Bumper рендерится в H.264 1920×1080. Для разнородной
+          библиотеки (MKV + AVI с разными кодеками) concat-демуксер
+          может упасть с <code>Error submitting packet</code>. Если так —
+          отключите bumper, оставьте только preview.
+        </p>
       </fieldset>
 
     {% elif channel.source_type in ('iptv', 'camera') %}
@@ -148,20 +159,6 @@
   </section>
 
   <section class="card">
-    <h2>Бегущая строка</h2>
-    <label class="checkbox-label">
-      <input type="checkbox" name="ticker_enabled"
-             {% if channel.ticker_enabled %}checked{% endif %}>
-      <span>включить бегущую строку</span>
-    </label>
-    <label>Текст бегущей строки
-      <input name="ticker_text" size="80"
-             value="{{ channel.ticker_text or '' }}"
-             placeholder="например: Внимание! Сегодня в 20:00 профилактика">
-    </label>
-  </section>
-
-  <section class="card">
     <h2>Picture-in-Picture (картинка в углу)</h2>
     <label class="checkbox-label">
       <input type="checkbox" name="pip_enabled"
@@ -192,17 +189,20 @@
              value="{{ channel.pip_margin or 16 }}">
     </label>
     <p class="muted small">
-      Настройки PiP сохраняются кнопкой <strong>«Сохранить»</strong> внизу формы.
-      Сама картинка загружается отдельной формой <strong>ниже</strong> (после основной формы).
+      Картинка загружается отдельной формой ниже (после основной формы).
     </p>
   </section>
+  {% endif %}
+
   {% if channel.source_type == 'folder' %}
   <section class="card">
     <h2>Анонс следующего файла (preview)</h2>
     <p class="muted small">
-      Показывает «Далее: имя_файла» в нижнем правом углу за N секунд до конца
-      текущего файла. Для каналов из папок. Текст обновляется автоматически
-      без разрыва HLS.
+      Показывает <strong>«Далее: имя_файла»</strong> в нижнем правом углу
+      за N секунд до конца текущего файла. Для каналов из папок. Текст
+      обновляется автоматически без разрыва HLS.
+      <strong>Не зависит от bumper</strong> — это отдельная функция
+      (текст в углу, не полноэкранный анонс).
     </p>
     <label class="checkbox-label">
       <input type="checkbox" name="preview_enabled"
@@ -218,7 +218,6 @@
       висеть постоянно (т.к. до конца всегда меньше N).
     </p>
   </section>
-  {% endif %}
   {% endif %}
 
   {% if channel.source_type == 'mosaic' %}
@@ -313,7 +312,6 @@
 
   <div class="form-actions">
     <button type="submit" class="btn-start">Сохранить</button>
-    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
     <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
   </div>
 </form>

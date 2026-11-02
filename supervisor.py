@@ -195,37 +195,43 @@ class ChannelRunner(threading.Thread):
         if "hls" in self.procs:
             hls_dir = APP_ROOT / "data" / "hls" / str(channel["id"])
 
-        def watchdog():
-            if not hls_dir:
-                return
-            for _ in range(15):
-                if self.stop_event.is_set():
+            def watchdog():
+                if not hls_dir:
                     return
-                try:
-                    if ((hls_dir / "index.m3u8").exists()
-                            or any(hls_dir.glob("seg_*.ts"))):
+                max_wait = 45 if channel.get("source_type") == "folder" else 15
+                for _ in range(max_wait):
+                    if self.stop_event.is_set():
                         return
-                except OSError:
-                    pass
-                time.sleep(1)
-            if not self.stop_event.is_set():
-                self.state["error"] = (
-                    "ffmpeg не создаёт HLS-сегменты за 15 сек — "
-                    "проверьте /events"
-                )
-                events.warn(
-                    "supervisor",
-                    f"channel {channel['id']}: no HLS after 15s",
-                )
-
-        if hls_dir:
-            threading.Thread(target=watchdog, daemon=True).start()
+                    try:
+                        if ((hls_dir / "index.m3u8").exists()
+                                or any(hls_dir.glob("seg_*.ts"))):
+                            return
+                    except OSError:
+                        pass
+                    time.sleep(1)
+                if not self.stop_event.is_set():
+                    self.state["error"] = (
+                        f"ffmpeg не создаёт HLS-сегменты за {max_wait} сек — "
+                        "проверьте /events"
+                    )
+                    events.warn(
+                        "supervisor",
+                        f"channel {channel['id']}: no HLS after {max_wait}s",
+                    )
 
         try:
             while not self.stop_event.is_set():
                 time.sleep(1.0)
                 if not any(p.poll() is None for p in self.procs.values()):
                     return
+                # clear false-positive "no HLS" error once HLS actually appears
+                if self.state.get("error") and hls_dir:
+                    try:
+                        if ((hls_dir / "index.m3u8").exists()
+                                or any(hls_dir.glob("seg_*.ts"))):
+                            self.state["error"] = None
+                    except OSError:
+                        pass
         finally:
             self._cleanup()
 
@@ -233,6 +239,19 @@ class ChannelRunner(threading.Thread):
         source = _make_source(channel)
         env = self._env()
         for out in outputs:
+            if out == "hls":
+                hls_dir = APP_ROOT / "data" / "hls" / str(channel["id"])
+                hls_dir.mkdir(parents=True, exist_ok=True)
+                # delete every file with retry (segments, .vtt, .tmp, index)
+                for f in list(hls_dir.iterdir()):
+                    if not f.is_file():
+                        continue
+                    for _ in range(5):
+                        try:
+                            f.unlink()
+                            break
+                        except OSError:
+                            time.sleep(0.1)
             cmd = source.build_ffmpeg_cmd(out)
             events.info("supervisor",
                         f"channel {channel['id']} start output={out}",
@@ -362,6 +381,14 @@ class ChannelRunner(threading.Thread):
         except OSError:
             pass
         self._last_preview = ""
+        # clear HLS folder so next start begins from MEDIA-SEQUENCE:0
+        hls_dir = APP_ROOT / "data" / "hls" / str(self.channel["id"])
+        if hls_dir.is_dir():
+            for f in list(hls_dir.iterdir()):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
 
 
 class Supervisor:

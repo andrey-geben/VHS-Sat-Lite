@@ -1,8 +1,8 @@
 """Render a short 'Next: <name>' bumper clip for a video file.
 
-Bumpers are MPEG-TS (H.264 + AAC 1920x1080) so `-c copy` in the concat
-demuxer works when the user's library already matches these params.
-If not — the channel's `codec_strategy` falls back to `encode`.
+Bumpers are MPEG-TS (H.264 + AAC). Used as a full-screen announcement
+before each video when the channel has bumper_enabled=1 OR
+preview_enabled=1 (preview implies bumper — see sources/folder.py).
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 from event_writer import events
+from frozen_utils import ffmpeg_path
 
 
 def _font_path() -> str:
@@ -28,6 +29,11 @@ def _font_path() -> str:
     return "Sans"
 
 
+def _escape_filter_path(p: str) -> str:
+    r"""Escape path for use inside filter_complex (colons must become \:)."""
+    return p.replace("\\", "/").replace(":", r"\:")
+
+
 def _escape_drawtext(text: str) -> str:
     return (text.replace("\\", "\\\\").replace(":", "\\:")
                 .replace("'", "\\'").replace("%", "\\%"))
@@ -35,11 +41,15 @@ def _escape_drawtext(text: str) -> str:
 
 def _extract_thumbnail(video: Path, out: Path) -> bool:
     for ss in ("10", "1", "0"):
-        r = subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error", "-ss", ss, "-i", str(video),
-             "-vframes", "1", "-vf", "scale=800:-1", str(out)],
-            capture_output=True, timeout=30,
-        )
+        try:
+            r = subprocess.run(
+                [ffmpeg_path(), "-y", "-loglevel", "error",
+                 "-ss", ss, "-i", str(video),
+                 "-vframes", "1", "-vf", "scale=800:-1", str(out)],
+                capture_output=True, timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            continue
         if r.returncode == 0 and out.exists() and out.stat().st_size > 0:
             return True
     return False
@@ -69,7 +79,7 @@ def ensure_bumper(
     thumb = bumper_dir / f"{key}.jpg"
     has_thumb = _extract_thumbnail(video, thumb)
 
-    font = _font_path()
+    font = _escape_filter_path(_font_path())
     label_safe = _escape_drawtext(label[:60])
     overlay_title = _escape_drawtext("Следующий файл")
 
@@ -94,7 +104,7 @@ def ensure_bumper(
     )
 
     cmd = (
-        ["ffmpeg", "-y", "-loglevel", "error"] + inputs +
+        [ffmpeg_path(), "-y", "-loglevel", "error"] + inputs +
         ["-filter_complex", filter_complex,
          "-map", "[outv]", "-map", "2:a",
          "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",

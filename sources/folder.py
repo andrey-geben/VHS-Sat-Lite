@@ -9,6 +9,7 @@ from event_writer import events
 from .bumper import ensure_bumper
 from frozen_utils import ffmpeg_path
 
+
 def _quote_path(p: Path | str) -> str:
     s = str(p).replace("\\", "/")
     s = s.replace("'", "'\\''")
@@ -76,19 +77,23 @@ class FolderSource:
         if not c.get("reshuffle_on_loop"):
             cmd += ["-stream_loop", "-1"]
         cmd += ["-re", "-f", "concat", "-safe", "0", "-i", str(playlist)]
+
         from overlays import overlay_extra_inputs
         extra = overlay_extra_inputs(c)
         if extra:
             cmd += extra
+
         strategy = (c.get("codec_strategy") or "auto").lower()
         if strategy == "copy":
             cmd += ["-c", "copy"]
         elif strategy == "encode":
             cmd += [
-                "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-                "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "3000k",
-                "-bufsize", "6000k", "-g", "50",
-                "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+                "-vf", "scale='min(1280,iw)':-2",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+                "-profile:v", "main",
+                "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
+                "-bufsize", "5000k", "-g", "50",
+                "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
             ]
         elif strategy == "copy_video":
             cmd += [
@@ -97,21 +102,19 @@ class FolderSource:
             ]
         else:  # auto
             cmd += ["-c", "copy"]
-        # --- overlays (ticker, later PiP) ---
+
         from overlays import (build_overlay_filter, overlay_output_args,
-                              overlay_forces_encode, overlay_extra_inputs)
+                              overlay_forces_encode)
         if overlay_forces_encode(c):
             if "-c" in cmd and cmd[cmd.index("-c") + 1] == "copy":
                 i = cmd.index("-c")
                 cmd[i:i + 2] = [
-                    "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-                    "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "3000k",
-                    "-bufsize", "6000k", "-g", "50",
-                    "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+                    "-profile:v", "main",
+                    "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
+                    "-bufsize", "5000k", "-g", "50",
+                    "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
                 ]
-            extra = overlay_extra_inputs(c)
-            if extra:
-                cmd += extra
             overlay = build_overlay_filter(c)
             if overlay:
                 cmd += ["-filter_complex", overlay]
@@ -126,22 +129,31 @@ class FolderSource:
             hls_dir = self.data_dir / "hls" / str(c["id"])
             hls_dir.mkdir(parents=True, exist_ok=True)
             cmd += [
-                "-f", "hls", "-hls_time", "4", "-hls_list_size", "6",
-                "-hls_flags", "delete_segments+append_list+omit_endlist",
+                "-sn",
+                "-map", "0:v:0", "-map", "0:a:0?",
+                "-f", "hls",
+                "-hls_time", "6",
+                "-hls_list_size", "6",
+                "-start_number", "0",
+                "-hls_flags", "delete_segments+omit_endlist+temp_file",
                 "-hls_segment_filename", str(hls_dir / "seg_%05d.ts"),
                 str(hls_dir / "index.m3u8"),
             ]
+        else:
+            raise ValueError(f"unknown output: {output}")
+
         return cmd
 
-
-
     def build_source_cmd(self, port: int) -> list[str]:
-        """FFmpeg #1: read concat playlist, copy codecs, output MPEG-TS to TCP."""
+        """FFmpeg #1: read concat playlist, copy codecs, output MPEG-TS to TCP.
+
+        Reserved for future two-process mode; folder channels currently run
+        as a single process (see supervisor._needs_two_process).
+        """
         playlist = self.build_playlist()
         c = self.channel
         cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "warning",
                "-nostats"]
-        # NOTE: -stream_loop is an INPUT option, must come before -i.
         if not c.get("reshuffle_on_loop"):
             cmd += ["-stream_loop", "-1"]
         cmd += ["-re", "-f", "concat", "-safe", "0", "-i", str(playlist),

@@ -180,6 +180,22 @@ def create_viewer_app() -> Flask:
         hls_root = DATA_DIR / "hls" / str(cid)
         if not hls_root.is_dir():
             abort(404)
+        # For index.m3u8, read into memory to avoid holding the file open
+        # (needed for FFmpeg +temp_file rename on Windows).
+        if filename == "index.m3u8":
+            import time as _time
+            f = hls_root / filename
+            for _ in range(5):
+                try:
+                    content = f.read_bytes()
+                    return Response(
+                        content,
+                        mimetype="application/vnd.apple.mpegurl",
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                    )
+                except (FileNotFoundError, PermissionError):
+                    _time.sleep(0.05)
+            abort(404)
         return send_from_directory(hls_root, filename, mimetype=None)
 
     # ---------- playlist ----------
