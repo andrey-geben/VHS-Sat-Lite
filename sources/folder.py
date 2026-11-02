@@ -84,14 +84,20 @@ class FolderSource:
             cmd += extra
 
         strategy = (c.get("codec_strategy") or "auto").lower()
+
+        # overlay check upfront: -vf must be skipped if -filter_complex will be used
+        from overlays import overlay_forces_encode as _ofe
+        _use_overlay = _ofe(c)
+
         if strategy == "copy":
             cmd += ["-c", "copy"]
         elif strategy == "encode":
+            if not _use_overlay:
+                cmd += ["-vf", "scale='min(1280,iw)':-2,format=nv12"]
             cmd += [
-                "-vf", "scale='min(1280,iw)':-2",
-                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+                "-c:v", "h264_qsv", "-preset", "veryfast",
                 "-profile:v", "main",
-                "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
+                "-pix_fmt", "nv12", "-b:v", "2000k", "-maxrate", "2500k",
                 "-bufsize", "5000k", "-g", "50",
                 "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
             ]
@@ -109,14 +115,16 @@ class FolderSource:
             if "-c" in cmd and cmd[cmd.index("-c") + 1] == "copy":
                 i = cmd.index("-c")
                 cmd[i:i + 2] = [
-                    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+                    "-c:v", "h264_qsv", "-preset", "veryfast",
                     "-profile:v", "main",
-                    "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
+                    "-pix_fmt", "nv12", "-b:v", "2000k", "-maxrate", "2500k",
                     "-bufsize", "5000k", "-g", "50",
                     "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
                 ]
             overlay = build_overlay_filter(c)
             if overlay:
+                # QSV needs nv12; add format conversion at end of filter graph
+                overlay = overlay.replace("[vout]", "[vout_qsv]") + "; [vout_qsv]format=nv12[vout]"
                 cmd += ["-filter_complex", overlay]
                 cmd += overlay_output_args()
 

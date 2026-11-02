@@ -136,8 +136,10 @@ def create_lite_app() -> Flask:
             return {}
     init_db()
 
-    for sub in ("hls", "bumpers", "playlists", "ticker"):
+    for sub in ("hls", "bumpers", "playlists", "ticker", "pip"):
         (DATA_DIR / sub).mkdir(parents=True, exist_ok=True)
+    (APP_ROOT / "logs").mkdir(parents=True, exist_ok=True)
+    (APP_ROOT / "downloads").mkdir(parents=True, exist_ok=True)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(settings_bp)

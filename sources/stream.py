@@ -66,10 +66,10 @@ class StreamSource:
             cmd += ["-c", "copy"]
         elif strategy == "encode":
             cmd += [
-                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-                "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
-                "-bufsize", "5000k", "-g", "50",
+                "-c:v", "h264_qsv", "-preset", "veryfast",
                 "-profile:v", "main",
+                "-pix_fmt", "nv12", "-b:v", "2000k", "-maxrate", "2500k",
+                "-bufsize", "5000k", "-g", "50",
                 "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
             ]
         elif strategy == "copy_video":
@@ -87,10 +87,10 @@ class StreamSource:
             if "-c" in cmd and cmd[cmd.index("-c") + 1] == "copy":
                 i = cmd.index("-c")
                 cmd[i:i + 2] = [
-                    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-                    "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
-                    "-bufsize", "5000k", "-g", "50",
+                    "-c:v", "h264_qsv", "-preset", "veryfast",
                     "-profile:v", "main",
+                    "-pix_fmt", "nv12", "-b:v", "2000k", "-maxrate", "2500k",
+                    "-bufsize", "5000k", "-g", "50",
                     "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
                 ]
             overlay = build_overlay_filter(c)
@@ -163,15 +163,16 @@ class StreamSource:
         cmd += ["-fflags", "+genpts", "-avoid_negative_ts", "make_zero"]
 
         cmd += [
-            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-            "-pix_fmt", "yuv420p", "-b:v", "2000k", "-maxrate", "2500k",
+            "-c:v", "h264_qsv", "-preset", "veryfast",
+            "-pix_fmt", "nv12", "-b:v", "2000k", "-maxrate", "2500k",
             "-bufsize", "5000k", "-g", "50",
-            "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
         ]
 
         from overlays import build_overlay_filter, overlay_output_args
         overlay = build_overlay_filter(c)
         if overlay:
+            overlay = overlay.replace("[vout]", "[vout_qsv]") + "; [vout_qsv]format=nv12[vout]"
             cmd += ["-filter_complex", overlay]
             cmd += overlay_output_args()
 
