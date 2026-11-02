@@ -314,16 +314,38 @@ class ChannelRunner(threading.Thread):
             ).start()
     # ---------- helpers ----------
     def _read_progress(self, out: str, proc: subprocess.Popen) -> None:
-        for line in proc.stdout:  # type: ignore[union-attr]
-            line = line.strip()
-            if not line.startswith("out_time_ms="):
+        for raw in proc.stdout:  # type: ignore[union-attr]
+            line = raw.strip()
+            if not line:
                 continue
-            try:
-                ms = int(line.split("=", 1)[1])
-            except ValueError:
+
+            sec: int | None = None
+            if line.startswith("out_time_us="):
+                try:
+                    sec = int(line.split("=", 1)[1]) // 1_000_000
+                except ValueError:
+                    sec = None
+            elif line.startswith("out_time_ms="):
+                try:
+                    sec = int(line.split("=", 1)[1]) // 1_000_000
+                except ValueError:
+                    sec = None
+            elif line.startswith("out_time="):
+                try:
+                    t = line.split("=", 1)[1]
+                    if t and t != "N/A":
+                        parts = t.split(":")
+                        if len(parts) == 3:
+                            hh, mm = int(parts[0]), int(parts[1])
+                            ss = float(parts[2])
+                            sec = hh * 3600 + mm * 60 + int(ss)
+                except (ValueError, IndexError):
+                    sec = None
+
+            if sec is None:
                 continue
-            self.state["position_sec"] = ms // 1_000_000
-            self._update_preview(self.state["position_sec"])
+            self.state["position_sec"] = sec
+            self._update_preview(sec)
 
     def _update_preview(self, position_sec: int) -> None:
         if not self._preview_timeline:
@@ -351,8 +373,8 @@ class ChannelRunner(threading.Thread):
                         f"channel {self.channel['id']}: preview write failed: {exc}")
 
     def _read_stderr(self, out: str, proc: subprocess.Popen) -> None:
-        for line in proc.stderr:  # type: ignore[union-attr]
-            line = line.rstrip()
+        for raw in proc.stderr:  # type: ignore[union-attr]
+            line = raw.rstrip()
             if not line:
                 continue
             low = line.lower()
@@ -361,6 +383,12 @@ class ChannelRunner(threading.Thread):
                 name = line.split("'", 2)[-2] if "'" in line else line
                 self.state["current_file"] = Path(name).name
             if any(w in low for w in ("error", "failed", "invalid")):
+                # throttle: log same message at most once per 5 seconds
+                key = line[:80]
+                now = time.monotonic()
+                if now - self._last_err_logged.get(key, 0.0) < 5.0:
+                    continue
+                self._last_err_logged[key] = now
                 events.warn("ffmpeg",
                             f"channel {self.channel['id']} [{out}]: {line[-300:]}")
 

@@ -185,7 +185,7 @@ def create_viewer_app() -> Flask:
         if filename == "index.m3u8":
             import time as _time
             f = hls_root / filename
-            for _ in range(5):
+            for _ in range(20):
                 try:
                     content = f.read_bytes()
                     return Response(
@@ -194,8 +194,19 @@ def create_viewer_app() -> Flask:
                         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
                     )
                 except (FileNotFoundError, PermissionError):
-                    _time.sleep(0.05)
-            abort(404)
+                    _time.sleep(0.3)
+            # during channel restart, return empty valid playlist instead of 404
+            empty = (
+                "#EXTM3U\n"
+                "#EXT-X-VERSION:3\n"
+                "#EXT-X-TARGETDURATION:6\n"
+                "#EXT-X-MEDIA-SEQUENCE:0\n"
+            )
+            return Response(
+                empty,
+                mimetype="application/vnd.apple.mpegurl",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
         return send_from_directory(hls_root, filename, mimetype=None)
 
     # ---------- playlist ----------
