@@ -143,7 +143,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         ("pip_position", "TEXT DEFAULT 'top-right'"),
         ("pip_width", "INTEGER NOT NULL DEFAULT 320"),
         ("pip_margin", "INTEGER NOT NULL DEFAULT 16"),
+        ("preview_enabled", "INTEGER NOT NULL DEFAULT 0"),
+        ("preview_lead_sec", "INTEGER NOT NULL DEFAULT 60"),
     ]
+
     added_number = False
     for name, ddl in new_cols:
         if name not in existing:
@@ -253,6 +256,7 @@ _CHANNEL_FIELDS = [
     "hls_enabled", "multicast_enabled", "multicast_addr", "multicast_port",
     "pip_enabled", "pip_mode", "pip_source", "pip_position",
     "pip_width", "pip_margin",
+    "preview_enabled", "preview_lead_sec",
     "enabled",
 ]
 

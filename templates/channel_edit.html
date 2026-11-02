@@ -196,6 +196,29 @@
       Сама картинка загружается отдельной формой <strong>ниже</strong> (после основной формы).
     </p>
   </section>
+  {% if channel.source_type == 'folder' %}
+  <section class="card">
+    <h2>Анонс следующего файла (preview)</h2>
+    <p class="muted small">
+      Показывает «Далее: имя_файла» в нижнем правом углу за N секунд до конца
+      текущего файла. Для каналов из папок. Текст обновляется автоматически
+      без разрыва HLS.
+    </p>
+    <label class="checkbox-label">
+      <input type="checkbox" name="preview_enabled"
+             {% if channel.preview_enabled %}checked{% endif %}>
+      <span>включить анонс следующего файла</span>
+    </label>
+    <label>Показывать за N секунд до конца
+      <input name="preview_lead_sec" type="number" min="10" max="600"
+             value="{{ channel.preview_lead_sec or 60 }}">
+    </label>
+    <p class="muted small">
+      Рекомендуется 60 секунд. Если файл короче N секунд — анонс будет
+      висеть постоянно (т.к. до конца всегда меньше N).
+    </p>
+  </section>
+  {% endif %}
   {% endif %}
 
   {% if channel.source_type == 'mosaic' %}
@@ -290,6 +313,7 @@
 
   <div class="form-actions">
     <button type="submit" class="btn-start">Сохранить</button>
+    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
     <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
   </div>
 </form>

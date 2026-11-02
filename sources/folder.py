@@ -72,11 +72,11 @@ class FolderSource:
         cmd = [
             ffmpeg_path(), "-hide_banner", "-loglevel", "warning",
             "-progress", "pipe:1", "-nostats",
-            "-re", "-f", "concat", "-safe", "0", "-i", str(playlist),
         ]
         if not c.get("reshuffle_on_loop"):
             cmd += ["-stream_loop", "-1"]
-            from overlays import overlay_extra_inputs
+        cmd += ["-re", "-f", "concat", "-safe", "0", "-i", str(playlist)]
+        from overlays import overlay_extra_inputs
         extra = overlay_extra_inputs(c)
         if extra:
             cmd += extra
@@ -131,4 +131,20 @@ class FolderSource:
                 "-hls_segment_filename", str(hls_dir / "seg_%05d.ts"),
                 str(hls_dir / "index.m3u8"),
             ]
+        return cmd
+
+
+
+    def build_source_cmd(self, port: int) -> list[str]:
+        """FFmpeg #1: read concat playlist, copy codecs, output MPEG-TS to TCP."""
+        playlist = self.build_playlist()
+        c = self.channel
+        cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "warning",
+               "-nostats"]
+        # NOTE: -stream_loop is an INPUT option, must come before -i.
+        if not c.get("reshuffle_on_loop"):
+            cmd += ["-stream_loop", "-1"]
+        cmd += ["-re", "-f", "concat", "-safe", "0", "-i", str(playlist),
+                "-c", "copy", "-f", "mpegts",
+                f"tcp://127.0.0.1:{port}?listen=1"]
         return cmd

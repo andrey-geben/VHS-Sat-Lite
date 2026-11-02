@@ -1,8 +1,10 @@
 """Per-channel ffmpeg supervisor. One thread per channel,
-one subprocess per enabled output."""
+one or two subprocess per enabled output (two when active pip_image schedule)."""
 from __future__ import annotations
 
+import json
 import os
+import socket
 import subprocess
 import threading
 import time
@@ -13,6 +15,22 @@ from event_writer import events
 from frozen_utils import APP_ROOT
 from sources import FolderSource, MosaicSource, StreamSource
 from db import set_channel_running
+
+
+_PORT_RANGE = range(20000, 20101)
+
+
+def _allocate_port() -> int:
+    for p in _PORT_RANGE:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("127.0.0.1", p))
+            s.close()
+            return p
+        except OSError:
+            s.close()
+            continue
+    raise RuntimeError("no free ports in 20000-20100")
 
 
 def _make_source(channel: dict):
@@ -26,6 +44,26 @@ def _make_source(channel: dict):
         cams = list_mosaic_sources(channel["id"])
         return MosaicSource(channel, cams)
     raise ValueError(f"unknown source_type: {st}")
+
+
+def _needs_two_process(channel: dict) -> bool:
+    """Two-process mode only for IPTV/camera with an *active* pip_image schedule."""
+    if channel.get("source_type") not in ("iptv", "camera"):
+        return False
+    try:
+        from db import get_active_schedule
+        sched = get_active_schedule(channel["id"], "pip_image")
+        if not sched:
+            return False
+        payload = json.loads(sched.get("payload") or "{}")
+        fname = payload.get("file")
+        if not fname:
+            return False
+        if not (APP_ROOT / "data" / "pip" / fname).is_file():
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        return False
 
 
 class ChannelRunner(threading.Thread):
@@ -43,7 +81,12 @@ class ChannelRunner(threading.Thread):
             "current_file": None,
             "position_sec": 0,
             "error": None,
+            "mode": "single",
+            "port": None,
+            "active_pip_file": None,
         }
+        self._preview_timeline: list[dict] | None = None
+        self._last_preview: str = ""
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -56,6 +99,11 @@ class ChannelRunner(threading.Thread):
             outs.append("multicast")
         return outs
 
+    def _env(self) -> dict:
+        env = os.environ.copy()
+        env["PATH"] = str(APP_ROOT / "bin") + os.pathsep + env.get("PATH", "")
+        return env
+
     # ---------- thread body ----------
     def run(self) -> None:
         self.state["running"] = True
@@ -67,10 +115,12 @@ class ChannelRunner(threading.Thread):
                     break
                 if not self._should_restart():
                     break
+                st = self.channel.get("source_type")
+                delay = 1.0 if st == "folder" else self.RESTART_DELAY
                 events.warn("supervisor",
-                            f"channel {self.channel['id']} crashed, "
-                            f"restart in {self.RESTART_DELAY:.0f}s")
-                if self.stop_event.wait(self.RESTART_DELAY):
+                            f"channel {self.channel['id']} ended, "
+                            f"restart in {delay:.1f}s")
+                if self.stop_event.wait(delay):
                     break
         except Exception as exc:  # noqa: BLE001
             self.state["error"] = str(exc)
@@ -87,38 +137,63 @@ class ChannelRunner(threading.Thread):
             events.info("supervisor", f"channel {self.channel['id']} stopped")
 
     def _should_restart(self) -> bool:
-        return self.channel.get("source_type") in ("iptv", "camera")
+        st = self.channel.get("source_type")
+        if st == "folder":
+            return True  # always loop; FFmpeg exits at end of concat, supervisor restarts
+        return st in ("iptv", "camera")
 
     def _run_once(self) -> None:
-        self.state["error"] = None  # reset on each attempt
-        source = _make_source(self.channel)
+        self.state["error"] = None
         outputs = self.enabled_outputs()
         if not outputs:
             raise RuntimeError("no output enabled (hls/multicast)")
 
-        for out in outputs:
-            cmd = source.build_ffmpeg_cmd(out)
-            events.info("supervisor",
-                        f"channel {self.channel['id']} start output={out}",
-                        cmd=" ".join(cmd[:8]) + " ...")
-            env = os.environ.copy()
-            env["PATH"] = str(APP_ROOT / "bin") + os.pathsep + env.get("PATH", "")
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, bufsize=1, env=env,
-            )
-            self.procs[out] = proc
-            threading.Thread(
-                target=self._read_progress, args=(out, proc), daemon=True,
-            ).start()
-            threading.Thread(
-                target=self._read_stderr, args=(out, proc), daemon=True,
-            ).start()
+        channel = dict(self.channel)
 
-        # watchdog: warn if HLS doesn't appear within 15 s
+        # Preview timeline (folder channels only, when enabled)
+        if (channel.get("source_type") == "folder"
+                and channel.get("preview_enabled")):
+            try:
+                from preview_utils import build_timeline
+                self._preview_timeline = build_timeline(channel)
+                if self._preview_timeline:
+                    events.info("supervisor",
+                                f"channel {channel['id']}: preview timeline built "
+                                f"({len(self._preview_timeline)} files)")
+            except Exception as exc:  # noqa: BLE001
+                events.warn("supervisor",
+                            f"channel {channel['id']}: preview timeline failed: {exc}")
+                self._preview_timeline = None
+        else:
+            self._preview_timeline = None
+
+        use_two = _needs_two_process(channel)
+
+        if use_two:
+            try:
+                from db import get_active_schedule
+                sched = get_active_schedule(channel["id"], "pip_image")
+                if sched:
+                    payload = json.loads(sched.get("payload") or "{}")
+                    fname = payload.get("file")
+                    if fname:
+                        channel["_active_pip"] = {"file": fname}
+            except Exception as exc:  # noqa: BLE001
+                events.warn("supervisor",
+                            f"channel {channel['id']}: active pip resolve failed: {exc}")
+
+        if use_two and channel.get("_active_pip"):
+            self.state["mode"] = "two"
+            self.state["active_pip_file"] = channel["_active_pip"]["file"]
+            self._run_two_process(channel, outputs)
+        else:
+            self.state["mode"] = "single"
+            self.state["active_pip_file"] = None
+            self._run_single_process(channel, outputs)
+
         hls_dir = None
         if "hls" in self.procs:
-            hls_dir = APP_ROOT / "data" / "hls" / str(self.channel["id"])
+            hls_dir = APP_ROOT / "data" / "hls" / str(channel["id"])
 
         def watchdog():
             if not hls_dir:
@@ -140,7 +215,7 @@ class ChannelRunner(threading.Thread):
                 )
                 events.warn(
                     "supervisor",
-                    f"channel {self.channel['id']}: no HLS after 15s",
+                    f"channel {channel['id']}: no HLS after 15s",
                 )
 
         if hls_dir:
@@ -154,16 +229,107 @@ class ChannelRunner(threading.Thread):
         finally:
             self._cleanup()
 
+    def _run_single_process(self, channel: dict, outputs: list[str]) -> None:
+        source = _make_source(channel)
+        env = self._env()
+        for out in outputs:
+            cmd = source.build_ffmpeg_cmd(out)
+            events.info("supervisor",
+                        f"channel {channel['id']} start output={out}",
+                        cmd=" ".join(cmd[:8]) + " ...")
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, bufsize=1, env=env,
+            )
+            self.procs[out] = proc
+            threading.Thread(
+                target=self._read_progress, args=(out, proc), daemon=True,
+            ).start()
+            threading.Thread(
+                target=self._read_stderr, args=(out, proc), daemon=True,
+            ).start()
+
+    def _run_two_process(self, channel: dict, outputs: list[str]) -> None:
+        source = _make_source(channel)
+        env = self._env()
+        port = _allocate_port()
+        self.state["port"] = port
+
+        # --- FFmpeg #1: source -> TCP ---
+        cmd1 = source.build_source_cmd(port)
+        events.info("supervisor",
+                    f"channel {channel['id']} start source on tcp:{port}",
+                    cmd=" ".join(cmd1[:8]) + " ...")
+        proc1 = subprocess.Popen(
+            cmd1, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, bufsize=1, env=env,
+        )
+        self.procs["source"] = proc1
+        threading.Thread(
+            target=self._read_stderr, args=("source", proc1), daemon=True,
+        ).start()
+
+        time.sleep(1.0)
+        if proc1.poll() is not None:
+            raise RuntimeError(
+                f"FFmpeg #1 (source) exited immediately with code {proc1.returncode}"
+            )
+
+        # --- FFmpeg #2: TCP -> overlays -> output(s) ---
+        for out in outputs:
+            cmd2 = source.build_overlay_cmd(port, out)
+            events.info("supervisor",
+                        f"channel {channel['id']} start overlay output={out} "
+                        f"(tcp:{port})",
+                        cmd=" ".join(cmd2[:8]) + " ...")
+            proc2 = subprocess.Popen(
+                cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, bufsize=1, env=env,
+            )
+            self.procs[out] = proc2
+            threading.Thread(
+                target=self._read_progress, args=(out, proc2), daemon=True,
+            ).start()
+            threading.Thread(
+                target=self._read_stderr, args=(out, proc2), daemon=True,
+            ).start()
     # ---------- helpers ----------
     def _read_progress(self, out: str, proc: subprocess.Popen) -> None:
         for line in proc.stdout:  # type: ignore[union-attr]
             line = line.strip()
-            if line.startswith("out_time_ms="):
-                try:
-                    ms = int(line.split("=", 1)[1])
-                    self.state["position_sec"] = ms // 1_000_000
-                except ValueError:
-                    pass
+            if not line.startswith("out_time_ms="):
+                continue
+            try:
+                ms = int(line.split("=", 1)[1])
+            except ValueError:
+                continue
+            self.state["position_sec"] = ms // 1_000_000
+            self._update_preview(self.state["position_sec"])
+
+    def _update_preview(self, position_sec: int) -> None:
+        if not self._preview_timeline:
+            return
+        try:
+            from preview_utils import next_name_near_end
+            lead = int(self.channel.get("preview_lead_sec") or 60)
+            next_name = next_name_near_end(self._preview_timeline, position_sec, lead)
+        except Exception:  # noqa: BLE001
+            return
+        text = f"Далее: {next_name}" if next_name else ""
+        if text == self._last_preview:
+            return
+        self._last_preview = text
+        preview_dir = APP_ROOT / "data" / "preview"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        target = preview_dir / f"{self.channel['id']}.txt"
+        try:
+            target.write_text(text, encoding="utf-8")
+            events.info("supervisor",
+                        f"channel {self.channel['id']}: preview "
+                        f"{'active' if text else 'cleared'} ({next_name or 'none'})")
+        except OSError as exc:  # noqa: BLE001
+            events.warn("supervisor",
+                        f"channel {self.channel['id']}: preview write failed: {exc}")
 
     def _read_stderr(self, out: str, proc: subprocess.Popen) -> None:
         for line in proc.stderr:  # type: ignore[union-attr]
@@ -171,7 +337,6 @@ class ChannelRunner(threading.Thread):
             if not line:
                 continue
             low = line.lower()
-            # current_file only for folder channels — streams have URLs, not files
             if (self.channel.get("source_type") == "folder"
                     and "opening" in low and "for reading" in low):
                 name = line.split("'", 2)[-2] if "'" in line else line
@@ -189,6 +354,14 @@ class ChannelRunner(threading.Thread):
                 except subprocess.TimeoutExpired:
                     p.kill()
         self.procs.clear()
+        # clear preview text so a stale file is not picked up on next start
+        try:
+            target = APP_ROOT / "data" / "preview" / f"{self.channel['id']}.txt"
+            if target.is_file():
+                target.write_text("", encoding="utf-8")
+        except OSError:
+            pass
+        self._last_preview = ""
 
 
 class Supervisor:
@@ -203,7 +376,6 @@ class Supervisor:
             if existing and existing.is_alive():
                 return False
 
-            # Resolve active ticker and prepare text file for drawtext:reload=1
             try:
                 from db import get_active_ticker
                 active_t = get_active_ticker(cid)
