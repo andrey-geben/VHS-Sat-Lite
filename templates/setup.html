@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Первый запуск — {{ title }}{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Первый запуск</h1>
+  <p class="warn">
+    ⚠️ Юридическое предупреждение: VHS-Sat предназначен для личного / внутреннего
+    использования с легальной подпиской. Ретрансляция платных каналов за пределы
+    частного домохозяйства — лицензируемая деятельность.
+  </p>
+  <form method="post">
+    <label>Логин администратора <input name="username" autofocus required></label>
+    <label>Пароль (≥ 6 символов) <input name="password" type="password" required></label>
+    <label>Повторите пароль <input name="password2" type="password" required></label>
+    <button type="submit">Создать администратора</button>
+  </form>
+</div>
+{% endblock %}

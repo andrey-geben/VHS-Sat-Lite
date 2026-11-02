@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}О программе — {{ title }}{% endblock %}
+{% block content %}
+<h1>О программе</h1>
+
+<section class="card">
+  <div class="about-head">
+    <div>
+      <h2 style="margin:0">{{ title }}</h2>
+      <p class="muted small" style="margin:.2rem 0 0">
+        версия <code>{{ about.version }}</code>
+        · backend: <code>{{ backend_name }}</code>
+        · platform: <code>{{ platform }}</code>
+      </p>
+    </div>
+  </div>
+  <p style="margin-top:.9rem">{{ about.description }}</p>
+
+  <table class="about-table">
+    <tr>
+      <th>Автор</th>
+      <td>{{ about.author }}{% if about.contact %} · {{ about.contact }}{% endif %}</td>
+    </tr>
+    {% if about.repo_url %}
+      <tr>
+        <th>Репозиторий</th>
+        <td><a href="{{ about.repo_url }}" target="_blank" rel="noopener">{{ about.repo_url }}</a></td>
+      </tr>
+    {% endif %}
+    {% if about.based_on %}
+      <tr>
+        <th>Основа архитектуры</th>
+        <td>
+          <a href="{{ about.based_on.url }}" target="_blank" rel="noopener">
+            {{ about.based_on.name }}
+          </a>
+          <div class="muted small">{{ about.based_on.note }}</div>
+        </td>
+      </tr>
+    {% endif %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Технологии</h2>
+  <ul class="about-list">
+    <li><strong>Flask</strong> — веб-интерфейс, REST API, сессии</li>
+    <li><strong>SQLite</strong> — каналы, сервисы, события, EPG (когда появится)</li>
+    <li><strong>YAML</strong> — статичный конфиг (server, viewer, security, adapters)</li>
+    <li><strong>ffmpeg</strong> — HLS-выход, локальные каналы, запись</li>
+    <li><strong>dvblast</strong> (Linux) — тюнинг DVB, CAM/CI, multicast MPEG-TS</li>
+    <li><strong>dvbv5-zap / dvbv5-scan</strong> (Linux) — наведение и сканирование транспондеров</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Два порта — два назначения</h2>
+  <table class="about-table">
+    <tr>
+      <th>Админка</th>
+      <td>
+        порт <code>{{ admin_port }}</code> ·
+        <a href="http://{{ request.host.split(':')[0] }}:{{ admin_port }}/">
+          открыть
+        </a>
+        <div class="muted small">Управление, авторизация, /events, /hardware, /channels</div>
+      </td>
+    </tr>
+    {% if viewer_enabled %}
+    <tr>
+      <th>Viewer</th>
+      <td>
+        порт <code>{{ viewer_port }}</code> ·
+        <a href="{{ viewer_url }}" target="_blank" rel="noopener">открыть</a>
+        <div class="muted small">
+          Публичная страница просмотра каналов. Авторизация настраивается в
+          <code>config.yaml</code> (<code>viewer.public</code>).
+        </div>
+      </td>
+    </tr>
+    {% endif %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Ограничения и предупреждения</h2>
+  <div class="flash flash-warn" style="margin:0 0 .8rem">
+    <strong>Только Linux для production-эксплуатации.</strong>
+    Windows поддерживается для разработки и тестирования UI/API
+    на stub-бэкенде (демо-данные). Работа с DVB-S/S2, CAM/CI и
+    multicast через <code>dvblast</code> возможна только на Linux —
+    этих утилит и Linux DVB API под Windows не существует.
+  </div>
+  <div class="flash flash-warn" style="margin:0 0 .8rem">
+    <strong>CI+ не поддерживается.</strong>
+    Проект работает с «голым» DVB-CI. Современные CI+ CAM-модули
+    требуют сертифицированного устройства и шифрованного канала
+    «CAM ↔ хост»; без сертификации работа возможна лишь в
+    fallback-режиме (без CI+), если карта и CAM это позволяют.
+  </div>
+  <div class="flash flash-warn" style="margin:0">
+    <strong>Юридическое предупреждение.</strong>
+    VHS-Sat предназначен для личного / внутреннего использования
+    с легальной подпиской. Ретрансляция платных каналов за пределы
+    частного домохозяйства (в т.ч. через CAM) в РФ и ЕС —
+    лицензируемая деятельность. Ответственность за соблюдение
+    законодательства — на операторе сервера.
+  </div>
+</section>
+
+<section class="card">
+  <h2>Что дальше в разработке</h2>
+  <ul class="about-list">
+    <li><strong>Этап 2</strong> — DVB-тюнинг и сканирование (только Linux)</li>
+    <li><strong>Этап 3</strong> — DVB-мультикаст через <code>dvblast</code> (только Linux)</li>
+    <li><strong>Этап 4</strong> — CAM/CI: привязка слотов, статус модуля</li>
+    <li><strong>Этап 5</strong> — запись сервисов, EPG</li>
+  </ul>
+</section>
+{% endblock %}

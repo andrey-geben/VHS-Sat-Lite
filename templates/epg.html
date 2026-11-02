@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}EPG — {{ title }}{% endblock %}
+{% block content %}
+<h1>Программа передач</h1>
+<p class="muted small">
+  Расписание строится из текущего плейлиста канала. Точность — ±1 минута:
+  позиция берётся из счётчика ffmpeg, длительности файлов — через <code>ffprobe</code>
+  (кэш в SQLite, повторно не читаются).
+</p>
+
+{% if channels %}
+  {% for ch in channels %}
+    <section class="epg-card">
+      <div class="epg-header">
+        <span class="channel-icon">
+          {% if ch.source_type == 'folder' %}📁
+          {% elif ch.source_type == 'iptv' %}📡
+          {% elif ch.source_type == 'camera' %}📹
+          {% elif ch.source_type == 'dvb' %}🛰️
+          {% endif %}
+        </span>
+        <strong>{{ ch.name }}</strong>
+        <span class="badge {{ 'live' if ch.running else 'off' }}">
+          {{ 'LIVE' if ch.running else 'OFFLINE' }}
+        </span>
+        {% if ch.uptime_human %}
+          <span class="muted small">· в эфире {{ ch.uptime_human }}</span>
+        {% endif %}
+        <a class="muted small epg-watch-link"
+           href="{{ viewer_url }}watch/{{ ch.id }}"
+           target="_blank" rel="noopener">▶ смотреть</a>
+      </div>
+
+      {% if ch.source_type != 'folder' %}
+        <p class="muted small">
+          {% if ch.source_type == 'iptv' %}📡 IPTV — прямой эфир, расписание недоступно
+          {% elif ch.source_type == 'camera' %}📹 Камера — прямой эфир, расписание недоступно
+          {% elif ch.source_type == 'dvb' %}🛰️ DVB — EPG появится на этапе DVB (Linux)
+          {% endif %}
+        </p>
+
+      {% elif not ch.running %}
+        <p class="muted small">Канал не запущен. Расписание появится при старте.</p>
+
+      {% elif not ch.schedule %}
+        <p class="muted small">
+          Не удалось построить расписание — плейлист ещё не создан
+          или файлы в папке недоступны. Проверьте <code>/events</code>.
+        </p>
+
+      {% else %}
+        <table class="epg-table">
+          <tr>
+            <th style="width:7rem">Когда</th>
+            <th>Название</th>
+            <th style="width:6rem">Длит.</th>
+          </tr>
+          {% for item in ch.schedule %}
+            <tr class="{% if item.is_current %}current{% endif %}">
+              <td class="muted small">
+                {% if item.is_current %}
+                  <strong>сейчас</strong>
+                {% elif item.offset_sec < 60 %}
+                  через {{ item.offset_sec }} с
+                {% else %}
+                  через {{ item.offset_sec // 60 }} мин
+                {% endif %}
+              </td>
+              <td>{{ item.name }}</td>
+              <td class="muted small">
+                {% if item.duration_sec >= 60 %}
+                  {{ item.duration_sec // 60 }} мин
+                {% else %}
+                  {{ item.duration_sec }} с
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </table>
+        <p class="muted small" style="margin:.5rem 0 0">
+          {% if ch.reshuffle_on_loop %}
+            ⟳ при следующем цикле порядок изменится
+          {% else %}
+            ⟳ после окончания цикл повторится в том же порядке
+          {% endif %}
+        </p>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% else %}
+  <p class="muted">Каналов нет.</p>
+{% endif %}
+{% endblock %}

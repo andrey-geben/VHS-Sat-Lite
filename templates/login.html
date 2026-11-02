@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Вход — {{ title }}{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Вход</h1>
+  <form method="post">
+    <label>Логин <input name="username" autofocus required></label>
+    <label>Пароль <input name="password" type="password" required></label>
+    <button type="submit">Войти</button>
+  </form>
+</div>
+{% endblock %}

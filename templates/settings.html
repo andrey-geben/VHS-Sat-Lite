@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Настройки — {{ title }}{% endblock %}
+{% block content %}
+<h1>Настройки</h1>
+
+<p class="muted small">
+  Поля с пометкой <span class="badge-restart">restart</span> вступают в силу
+  только после перезапуска сервера. Остальные применяются сразу.
+</p>
+
+<section class="card">
+  <h2>Общие</h2>
+  <form method="post" action="{{ url_for('settings.settings_save') }}">
+
+    <fieldset>
+      <legend>Сервер (админка)</legend>
+      <label>Заголовок приложения
+        <input name="server_title" value="{{ cfg_server.title or '' }}">
+      </label>
+      <label>Host <span class="badge-restart">restart</span>
+        <input name="server_host" value="{{ cfg_server.host or '0.0.0.0' }}">
+      </label>
+      <label>Port <span class="badge-restart">restart</span>
+        <input name="server_port" type="number" min="1" max="65535"
+               value="{{ cfg_server.port or 8300 }}">
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="server_debug"
+               {% if cfg_server.debug %}checked{% endif %}>
+        <span>debug-режим <span class="badge-restart">restart</span>
+          <span class="muted small">— не включать в production</span></span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Viewer (публичный порт)</legend>
+      <label>Заголовок viewer
+        <input name="viewer_title" value="{{ cfg_viewer.title or 'Домашнее ТВ' }}">
+      </label>
+      <label>Port <span class="badge-restart">restart</span>
+        <input name="viewer_port" type="number" min="1" max="65535"
+               value="{{ cfg_viewer.port or 8301 }}">
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="viewer_enabled"
+               {% if cfg_viewer.enabled %}checked{% endif %}>
+        <span>Viewer включён <span class="badge-restart">restart</span></span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="viewer_public"
+               {% if cfg_viewer.public %}checked{% endif %}>
+        <span>Публичный доступ (без логина)
+          <span class="muted small">— если снять, viewer будет требовать логин
+          (cookie общая с админкой)</span></span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Безопасность</legend>
+      <label class="checkbox-label">
+        <input type="checkbox" name="auth_enabled"
+               {% if cfg_security.auth_enabled %}checked{% endif %}>
+        <span>Авторизация включена
+          <span class="muted small">— снятие отключает логин на админке
+          и viewer (только для изолированной LAN!)</span></span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>О программе</legend>
+      <label>Версия
+        <input name="about_version" value="{{ cfg_about.version or '' }}">
+      </label>
+      <label>Автор
+        <input name="about_author" value="{{ cfg_about.author or '' }}">
+      </label>
+      <label>Контакт
+        <input name="about_contact" value="{{ cfg_about.contact or '' }}">
+      </label>
+      <label>URL репозитория
+        <input name="about_repo_url" value="{{ cfg_about.repo_url or '' }}">
+      </label>
+      <label>Описание
+        <textarea name="about_description" rows="3">{{ cfg_about.description or '' }}</textarea>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Логирование</legend>
+      <label>Минимальный уровень в events.jsonl
+        <select name="log_level">
+          {% for lvl in ['DEBUG', 'INFO', 'WARN', 'ERROR'] %}
+            <option value="{{ lvl }}"
+              {% if cfg_logging.level == lvl %}selected{% endif %}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </fieldset>
+
+    <button type="submit">Сохранить</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Смена пароля</h2>
+  {% if current_user %}
+    <form method="post" action="{{ url_for('settings.settings_password') }}">
+      <label>Текущий пароль
+        <input name="old_password" type="password" required autocomplete="current-password">
+      </label>
+      <label>Новый пароль (≥ 6 символов)
+        <input name="new_password" type="password" required minlength="6" autocomplete="new-password">
+      </label>
+      <label>Повторите новый пароль
+        <input name="new_password2" type="password" required minlength="6" autocomplete="new-password">
+      </label>
+      <button type="submit">Сменить пароль</button>
+    </form>
+    <p class="muted small" style="margin-top:.6rem">
+      Пользователь: <code>{{ current_user.username }}</code> ·
+      роль: <code>{{ current_user.role }}</code>
+    </p>
+  {% else %}
+    <p class="muted">Войдите, чтобы сменить пароль.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Что нельзя менять из UI</h2>
+  <ul class="muted small">
+    <li><code>server.secret_key</code> — генерируется автоматически, не трогайте</li>
+    <li><code>database.path</code> — потребует миграции БД; меняйте вручную</li>
+    <li><code>logging.events_file</code> — путь файла событий; меняйте вручную</li>
+    <li><code>hls.directory</code>, <code>bumpers.directory</code> — пути к медиа; меняйте вручную</li>
+    <li><code>about.based_on</code> — метаданные для страницы «О программе»</li>
+  </ul>
+</section>
+{% endblock %}

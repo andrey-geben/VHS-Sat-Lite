@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}События — {{ title }}{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>События</h1>
+  {% if events %}
+    <form method="post" action="{{ url_for('events_clear') }}"
+          onsubmit="return confirm('Очистить журнал полностью?\n\nУдалятся все {{ events|length }} записей в logs/events.jsonl. Это действие нельзя отменить.');">
+      <button type="submit" class="btn-danger">Очистить журнал</button>
+    </form>
+  {% endif %}
+</div>
+
+<p class="muted small">
+  Показаны последние {{ events|length }} записей из <code>logs/events.jsonl</code>
+  (новые сверху). Порог записи задаётся в
+  <a href="{{ url_for('settings.settings_page') }}">настройках</a>
+  (<code>logging.level</code>).
+</p>
+
+{% if events %}
+  <table class="events">
+    <tr>
+      <th style="width:8rem">Время (UTC)</th>
+      <th style="width:6rem">Уровень</th>
+      <th style="width:8rem">Источник</th>
+      <th>Сообщение</th>
+    </tr>
+    {% for e in events|reverse %}
+      <tr class="level-{{ e.level|lower }}">
+        <td class="muted small">{{ e.ts }}</td>
+        <td><span class="lvl lvl-{{ e.level|lower }}">{{ e.level }}</span></td>
+        <td><code>{{ e.source }}</code></td>
+        <td>
+          {{ e.message }}
+          {% if e.extra %}
+            <details class="event-extra">
+              <summary>детали</summary>
+              <pre>{{ e.extra }}</pre>
+            </details>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted">Событий пока нет.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,749 @@
+{% extends "viewer_base.html" %}
+{% block title %}{{ channel.name }} — {{ title }}{% endblock %}
+{% block content %}
+<div class="player-wrap" id="player-wrap">
+  <video id="player" playsinline></video>
+
+  <div id="info-overlay" class="tv-overlay info-overlay hidden">
+    <div class="info-panel">
+      <div class="info-left">
+        <div class="info-number" id="info-number">—</div>
+        <div class="info-name-block">
+          <div class="info-name" id="info-name">{{ channel.name }}</div>
+          <div class="info-meta" id="info-meta"></div>
+        </div>
+      </div>
+      <div class="info-right">
+        <div class="info-line" id="info-uptime"></div>
+        <div class="info-line" id="info-now"></div>
+        <div class="info-line" id="info-next"></div>
+        <div class="info-line info-source" id="info-source"></div>
+        <div class="info-line info-outputs" id="info-outputs"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint-bar" class="tv-overlay hint-bar hidden">
+    <span class="hint-item">↑↓ каналы</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">OK меню</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">0–9 прямо</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">I инфо</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">Esc назад</span>
+  </div>
+
+  <div id="menu-overlay" class="tv-overlay menu-overlay hidden">
+    <div class="menu-panel">
+      <div class="menu-header">
+        <span>Каналы</span>
+        <span class="menu-close" id="menu-close">✕</span>
+      </div>
+      <div class="menu-tabs" id="menu-tabs"></div>
+      <div class="menu-grid" id="menu-grid"></div>
+      <div class="menu-help">
+        ←→ вкладки/карточки · ↑↓ строки · OK выбрать · буквы — поиск · Esc закрыть
+      </div>
+    </div>
+  </div>
+
+  <div id="screensaver" class="tv-overlay screensaver hidden">
+    <div class="ss-inner">
+      <div class="ss-clock" id="ss-clock">--:--</div>
+      <div class="ss-channel" id="ss-channel"></div>
+      <div class="ss-meta" id="ss-meta"></div>
+      <div class="ss-hint">нажмите любую клавишу</div>
+    </div>
+  </div>
+
+  <div id="toast" class="tv-overlay toast hidden"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script>
+(function () {
+  const INITIAL_CHANNEL_ID = {{ channel.id }};
+  const API_LIST = "/api/channels";
+  const PLAYER_TITLE = {{ title|tojson }};
+  const SCREENSAVER_TIMEOUT_MS = 5 * 60 * 1000;   // 5 минут
+
+  const video = document.getElementById('player');
+  const infoOverlay = document.getElementById('info-overlay');
+  const hintBar = document.getElementById('hint-bar');
+  const menuOverlay = document.getElementById('menu-overlay');
+  const menuTabs = document.getElementById('menu-tabs');
+  const menuGrid = document.getElementById('menu-grid');
+  const toast = document.getElementById('toast');
+  const playerWrap = document.getElementById('player-wrap');
+  const screensaverEl = document.getElementById('screensaver');
+
+  let channels = [];
+  let filteredChannels = [];
+  let currentChannelId = INITIAL_CHANNEL_ID;
+  let hlsInstance = null;
+  let isNativeHls = false;
+  let menuOpen = false;
+  let infoVisible = true;
+  let focusedIndex = 0;
+  let focusArea = 'grid';
+  let activeTab = '';
+  let cardsPerRow = 1;
+  let hintTimer = null;
+  let infoTimer = null;
+  let digitBuffer = '';
+  let digitTimer = null;
+  let searchBuffer = '';
+  let searchTimer = null;
+  let refreshTimer = null;
+  let loadSeq = 0;
+  let navStack = [];
+  let navPos = -1;
+
+  // screensaver state
+  let lastActivityAt = Date.now();
+  let screensaverVisible = false;
+  let screensaverClockTimer = null;
+  let screensaverCheckTimer = null;
+
+  const TAB_DEFS = [
+    { key: '',       icon: '',   label: 'Все' },
+    { key: 'folder', icon: '📁', label: 'Папки' },
+    { key: 'iptv',   icon: '📡', label: 'IPTV' },
+    { key: 'camera', icon: '📹', label: 'Камеры' },
+    { key: 'mosaic', icon: '🎥', label: 'Мозаики' },
+  ];
+
+  isNativeHls = !!video.canPlayType('application/vnd.apple.mpegurl');
+
+  // -------------- ACTIVITY / SCREENSAVER --------------
+  function resetActivity() {
+    lastActivityAt = Date.now();
+    if (screensaverVisible) hideScreensaver();
+  }
+
+  function showScreensaver() {
+    if (screensaverVisible) return;
+    screensaverVisible = true;
+    screensaverEl.classList.remove('hidden');
+    hideInfo();
+    hideHintBar();
+    updateScreensaverContent();
+    screensaverClockTimer = setInterval(updateScreensaverContent, 1000);
+  }
+
+  function hideScreensaver() {
+    screensaverVisible = false;
+    screensaverEl.classList.add('hidden');
+    clearInterval(screensaverClockTimer);
+    screensaverClockTimer = null;
+    lastActivityAt = Date.now();
+  }
+
+  function updateScreensaverContent() {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('ss-clock').textContent = hh + ':' + mm;
+
+    const ch = currentChannel();
+    if (ch) {
+      const num = ch.channel_number ? ch.channel_number + ' · ' : '';
+      document.getElementById('ss-channel').textContent = num + ch.name;
+      const meta = ch.epg_now ? 'сейчас: ' + ch.epg_now : '';
+      document.getElementById('ss-meta').textContent = meta;
+    } else {
+      document.getElementById('ss-channel').textContent = '';
+      document.getElementById('ss-meta').textContent = '';
+    }
+  }
+
+  function startScreensaverWatcher() {
+    clearInterval(screensaverCheckTimer);
+    screensaverCheckTimer = setInterval(() => {
+      if (screensaverVisible) return;
+      if (Date.now() - lastActivityAt >= SCREENSAVER_TIMEOUT_MS) {
+        showScreensaver();
+      }
+    }, 10000);
+  }
+
+  // -------------- HLS --------------
+  function hlsUrl(channelId) {
+    return '/hls/' + channelId + '/index.m3u8';
+  }
+
+  function pushNav(ch) {
+    if (navPos >= 0 && navStack[navPos] && navStack[navPos].id === ch.id) return;
+    if (navPos < navStack.length - 1) navStack = navStack.slice(0, navPos + 1);
+    navStack.push({ id: ch.id, name: ch.name });
+    if (navStack.length > 30) navStack.shift();
+    navPos = navStack.length - 1;
+  }
+
+  function goBackNav() {
+    if (navPos <= 0) return false;
+    navPos -= 1;
+    const target = navStack[navPos];
+    if (!target) return false;
+    loadChannel(target.id, true, { historyMode: true });
+    return true;
+  }
+
+  function showPreparing() {
+    let el = document.getElementById('preparing');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'preparing';
+      el.className = 'tv-overlay preparing-overlay';
+      el.innerHTML = '<div class="preparing-spinner"></div><div>Подготовка канала…</div>';
+      playerWrap.appendChild(el);
+    }
+    el.classList.remove('hidden');
+  }
+  function hidePreparing() {
+    const el = document.getElementById('preparing');
+    if (el) el.classList.add('hidden');
+  }
+
+  function hideVideo() {
+    try { video.pause(); } catch (e) {}
+    video.removeAttribute('src');
+    try { video.load(); } catch (e) {}
+    if (hlsInstance) {
+      try { hlsInstance.detachMedia(); hlsInstance.destroy(); } catch (e) {}
+      hlsInstance = null;
+    }
+  }
+
+  async function waitForManifest(url, channelId, maxWaitMs) {
+    const start = Date.now();
+    let lastStatus = 0;
+    while (Date.now() - start < maxWaitMs) {
+      try {
+        const r = await fetch(url, {
+          method: 'GET', headers: { 'Range': 'bytes=0-0' }, cache: 'no-store'
+        });
+        lastStatus = r.status;
+        if (r.ok || r.status === 206) return { ok: true };
+        if (r.status >= 400 && r.status !== 404) {
+          return { ok: false, status: r.status, reason: 'Сервер вернул HTTP ' + r.status };
+        }
+      } catch (e) {}
+      try {
+        const cr = await fetch('/api/channels/' + channelId, { cache: 'no-store' });
+        if (cr.ok) {
+          const ch = await cr.json();
+          if (!ch.running) return { ok: false, reason: 'Канал остановлен', status: lastStatus };
+          if (ch.error) return { ok: false, reason: 'Ошибка: ' + String(ch.error).slice(0, 200), status: lastStatus };
+        }
+      } catch (e) {}
+      await new Promise(res => setTimeout(res, 1000));
+    }
+    return {
+      ok: false, status: lastStatus,
+      reason: 'HLS-манифест не появился за ' + Math.round(maxWaitMs / 1000) + ' сек'
+    };
+  }
+
+  async function loadChannel(channelId, autoplay, opts) {
+    opts = opts || {};
+    if (!channelId) return;
+    const ch = channels.find(c => c.id === channelId);
+    if (!ch) { showToast('Канал не найден'); return; }
+
+    resetActivity();
+    const mySeq = ++loadSeq;
+
+    if (!ch.running) {
+      showToast('Канал не запущен');
+      hideVideo();
+      currentChannelId = channelId;
+      updateInfoPanel();
+      updateMenuSelection();
+      try { window.history.replaceState(null, '', '/watch/' + channelId); } catch (e) {}
+      if (!opts.historyMode) pushNav(ch);
+      return;
+    }
+
+    showPreparing();
+    const url = hlsUrl(channelId);
+    const result = await waitForManifest(url, channelId, 30000);
+    if (mySeq !== loadSeq) return;
+
+    if (!result.ok) {
+      hidePreparing();
+      showToast(result.reason || 'Поток не готов');
+      return;
+    }
+
+    currentChannelId = channelId;
+
+    if (isNativeHls) {
+      video.src = url;
+      if (autoplay !== false) video.play().catch(() => {});
+    } else if (window.Hls && Hls.isSupported()) {
+      if (!hlsInstance) {
+        hlsInstance = new Hls({ lowLatencyMode: false });
+        hlsInstance.attachMedia(video);
+        hlsInstance.on(Hls.Events.ERROR, (e, data) => {
+          if (data.fatal) {
+            showToast('Ошибка потока — перезапуск через 3 с');
+            setTimeout(() => loadChannel(currentChannelId), 3000);
+          }
+        });
+      }
+      hlsInstance.loadSource(url);
+      if (autoplay !== false) video.play().catch(() => {});
+    } else {
+      hidePreparing();
+      showToast('HLS не поддерживается браузером');
+      return;
+    }
+
+    hidePreparing();
+    try { window.history.replaceState(null, '', '/watch/' + channelId); } catch (e) {}
+    if (!opts.historyMode) pushNav(ch);
+    updateInfoPanel();
+    updateMenuSelection();
+    document.title = ch.name + ' — ' + PLAYER_TITLE;
+  }
+
+  // -------------- INFO PANEL --------------
+  function currentChannel() {
+    return channels.find(c => c.id === currentChannelId);
+  }
+
+  function updateInfoPanel() {
+    const ch = currentChannel();
+    if (!ch) return;
+
+    document.getElementById('info-number').textContent = ch.channel_number || '—';
+    document.getElementById('info-name').textContent = ch.name;
+
+    const typeLabels = {
+      folder: '📁 папка с видео',
+      iptv: '📡 IPTV-поток',
+      camera: '📹 видеокамера',
+      mosaic: '🎥 мозаика камер',
+      dvb: '🛰️ DVB',
+    };
+    document.getElementById('info-meta').textContent = typeLabels[ch.source_type] || ch.source_type || '';
+
+    const up = document.getElementById('info-uptime');
+    if (ch.running && ch.uptime_human) {
+      const since = ch.started_at_local ? ` · с ${ch.started_at_local}` : '';
+      up.textContent = `⏱ в эфире ${ch.uptime_human}${since}`;
+    } else if (!ch.running) {
+      up.textContent = '⏸ канал остановлен';
+    } else {
+      up.textContent = '';
+    }
+
+    const now = document.getElementById('info-now');
+    const next = document.getElementById('info-next');
+    if (ch.epg_now) now.textContent = `▶ сейчас: ${ch.epg_now}`;
+    else if (ch.current_file) now.textContent = `▶ сейчас: ${ch.current_file}`;
+    else if (ch.source_type === 'iptv') now.textContent = '▶ прямой эфир (IPTV)';
+    else if (ch.source_type === 'camera') now.textContent = '▶ прямой эфир (камера)';
+    else if (ch.source_type === 'mosaic') now.textContent = '▶ прямой эфир (мозаика)';
+    else now.textContent = '';
+    next.textContent = ch.epg_next ? `⏭ далее: ${ch.epg_next}` : '';
+
+    const src = document.getElementById('info-source');
+    if (ch.source_type === 'folder') {
+      const parts = [];
+      if (ch.folder) parts.push(ch.folder);
+      if (ch.folder_files) parts.push(`${ch.folder_files} файлов`);
+      if (ch.folder_size) parts.push(ch.folder_size);
+      src.textContent = parts.length ? '📂 ' + parts.join(' · ') : '';
+    } else if (ch.source_type === 'iptv' && ch.stream_url) {
+      src.textContent = '📡 ' + ch.stream_url;
+    } else if (ch.source_type === 'camera' && ch.stream_url) {
+      src.textContent = '📹 ' + ch.stream_url;
+    } else if (ch.source_type === 'mosaic') {
+      src.textContent = '🎥 мозаика камер';
+    } else src.textContent = '';
+
+    const outs = [];
+    if (ch.hls_enabled) outs.push('HLS');
+    if (ch.multicast_enabled && ch.multicast_addr) outs.push(`UDP ${ch.multicast_addr}:${ch.multicast_port}`);
+    document.getElementById('info-outputs').textContent = outs.length ? '🔊 ' + outs.join(' · ') : '';
+  }
+
+  function showInfo() {
+    infoVisible = true;
+    infoOverlay.classList.remove('hidden');
+    clearTimeout(infoTimer);
+    infoTimer = setTimeout(() => {
+      if (!menuOpen && !screensaverVisible) {
+        infoOverlay.classList.add('hidden');
+        infoVisible = false;
+      }
+    }, 5000);
+  }
+  function hideInfo() { infoOverlay.classList.add('hidden'); infoVisible = false; }
+
+  function showHintBar() {
+    hintBar.classList.remove('hidden');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => hintBar.classList.add('hidden'), 5000);
+  }
+  function hideHintBar() {
+    hintBar.classList.add('hidden');
+    clearTimeout(hintTimer);
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 2500);
+  }
+
+  // -------------- SWITCHING --------------
+  function channelByNumber(num) { return channels.find(c => c.channel_number === num); }
+  function channelIndex(cid) { return channels.findIndex(c => c.id === cid); }
+  function switchByOffset(delta) {
+    if (!channels.length) return;
+    const idx = channelIndex(currentChannelId);
+    const n = channels.length;
+    const next = ((idx + delta) % n + n) % n;
+    loadChannel(channels[next].id);
+  }
+
+  // -------------- MENU --------------
+  function computeCardsPerRow() {
+    const cards = menuGrid.querySelectorAll('.menu-card');
+    if (!cards.length) return 1;
+    const topRow = cards[0].getBoundingClientRect().top;
+    let count = 0;
+    for (const c of cards) {
+      if (Math.abs(c.getBoundingClientRect().top - topRow) < 5) count++;
+      else break;
+    }
+    return count || 1;
+  }
+
+  function buildFiltered() {
+    if (!activeTab) {
+      filteredChannels = channels.slice();
+    } else {
+      filteredChannels = channels.filter(c => c.source_type === activeTab);
+    }
+  }
+
+  function renderTabs() {
+    const counts = {
+      '': channels.length,
+      folder: channels.filter(c => c.source_type === 'folder').length,
+      iptv: channels.filter(c => c.source_type === 'iptv').length,
+      camera: channels.filter(c => c.source_type === 'camera').length,
+      mosaic: channels.filter(c => c.source_type === 'mosaic').length,
+    };
+    menuTabs.innerHTML = TAB_DEFS.map(t => {
+      const active = t.key === activeTab;
+      const focused = focusArea === 'tabs' && active ? 'focused' : '';
+      return `<button class="menu-tab ${active ? 'active' : ''} ${focused}" data-tab="${t.key}">
+        ${t.icon ? t.icon + ' ' : ''}${t.label}
+        <span class="menu-tab-count">${counts[t.key] || 0}</span>
+      </button>`;
+    }).join('');
+    menuTabs.querySelectorAll('.menu-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        resetActivity();
+        const key = btn.dataset.tab || '';
+        if (key === activeTab) { focusArea = 'grid'; focusedIndex = 0; }
+        else { activeTab = key; focusArea = 'grid'; buildFiltered(); focusedIndex = 0; }
+        renderMenu();
+      });
+    });
+  }
+
+  function renderMenu() {
+    renderTabs();
+    if (!filteredChannels.length) {
+      menuGrid.innerHTML = `<div class="menu-empty">Нет каналов в этой категории</div>`;
+      cardsPerRow = 1;
+    } else {
+      menuGrid.innerHTML = filteredChannels.map((ch, i) => `
+        <div class="menu-card ${ch.id === currentChannelId ? 'current' : ''} ${focusArea === 'grid' && i === focusedIndex ? 'focused' : ''}"
+             data-index="${i}" data-id="${ch.id}">
+          <div class="menu-num">${ch.channel_number || ''}</div>
+          <div class="menu-name">${escapeHtml(ch.name)}</div>
+          <div class="menu-status ${ch.running ? 'live' : 'off'}">${ch.running ? 'LIVE' : 'OFFLINE'}</div>
+          ${ch.epg_now ? `<div class="menu-now">${escapeHtml(ch.epg_now)}</div>` : ''}
+        </div>
+      `).join('');
+      cardsPerRow = computeCardsPerRow();
+    }
+    updateMenuSelection();
+  }
+
+  function updateMenuSelection() {
+    if (!menuOpen) return;
+    const tabs = menuTabs.querySelectorAll('.menu-tab');
+    tabs.forEach(t => t.classList.toggle('focused', focusArea === 'tabs' && t.dataset.tab === activeTab));
+
+    const cards = menuGrid.querySelectorAll('.menu-card');
+    cards.forEach((c, i) => c.classList.toggle('focused', focusArea === 'grid' && i === focusedIndex));
+
+    if (focusArea === 'grid' && cards[focusedIndex]) {
+      cards[focusedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  function openMenu() {
+    menuOpen = true;
+    menuOverlay.classList.remove('hidden');
+    hideInfo();
+    resetActivity();
+
+    const ch = currentChannel();
+    activeTab = ch && ch.source_type ? ch.source_type : '';
+    buildFiltered();
+    const idx = filteredChannels.findIndex(c => c.id === currentChannelId);
+    focusedIndex = idx >= 0 ? idx : 0;
+    focusArea = 'grid';
+    searchBuffer = '';
+    clearTimeout(searchTimer);
+
+    renderMenu();
+  }
+
+  function closeMenu() {
+    menuOpen = false;
+    menuOverlay.classList.add('hidden');
+    searchBuffer = '';
+    clearTimeout(searchTimer);
+  }
+
+  function menuSwitchTab(dir) {
+    const keys = TAB_DEFS.map(t => t.key);
+    const cur = keys.indexOf(activeTab);
+    if (cur < 0) return;
+    const next = (cur + dir + keys.length) % keys.length;
+    activeTab = keys[next];
+    buildFiltered();
+    focusedIndex = 0;
+    renderMenu();
+  }
+
+  function menuMoveInGrid(dir) {
+    if (!filteredChannels.length) return;
+    const n = filteredChannels.length;
+    if (dir === 'left') {
+      focusedIndex = (focusedIndex - 1 + n) % n;
+    } else if (dir === 'right') {
+      focusedIndex = (focusedIndex + 1) % n;
+    } else if (dir === 'up') {
+      if (focusedIndex < cardsPerRow) {
+        focusArea = 'tabs';
+        updateMenuSelection();
+        return;
+      }
+      focusedIndex = Math.max(0, focusedIndex - cardsPerRow);
+    } else if (dir === 'down') {
+      const cand = focusedIndex + cardsPerRow;
+      if (cand < n) focusedIndex = cand;
+    }
+    updateMenuSelection();
+  }
+
+  function menuActivate() {
+    if (focusArea === 'tabs') {
+      focusArea = 'grid';
+      focusedIndex = 0;
+      updateMenuSelection();
+      return;
+    }
+    const ch = filteredChannels[focusedIndex];
+    if (!ch) return;
+    closeMenu();
+    loadChannel(ch.id);
+    showInfo();
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    })[c]);
+  }
+
+  // -------------- SEARCH IN MENU --------------
+  function handleSearchChar(ch) {
+    if (!menuOpen) return;
+    searchBuffer += ch.toLowerCase();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { searchBuffer = ''; }, 1500);
+
+    const found = filteredChannels.findIndex(c =>
+      (c.name || '').toLowerCase().startsWith(searchBuffer)
+    );
+    if (found >= 0) {
+      focusedIndex = found;
+      focusArea = 'grid';
+      updateMenuSelection();
+      showToast('🔍 ' + searchBuffer);
+    } else {
+      showToast('🔍 ' + searchBuffer + ' — не найдено');
+    }
+  }
+
+  // -------------- DIGITS --------------
+  function handleDigit(d) {
+    digitBuffer += d;
+    showToast('→ ' + digitBuffer);
+    clearTimeout(digitTimer);
+    digitTimer = setTimeout(() => {
+      const num = parseInt(digitBuffer, 10);
+      digitBuffer = '';
+      const ch = channelByNumber(num);
+      if (ch) { loadChannel(ch.id); showInfo(); }
+      else showToast('Канал ' + num + ' не найден');
+    }, 1500);
+    if (digitBuffer.length >= 2) {
+      const num2 = parseInt(digitBuffer, 10);
+      const found = channelByNumber(num2);
+      if (found) {
+        clearTimeout(digitTimer);
+        digitBuffer = '';
+        loadChannel(found.id);
+        showInfo();
+      }
+    }
+  }
+
+  // -------------- ACTIONS --------------
+  function handleAction(action) {
+    resetActivity();
+    if (!screensaverVisible) showHintBar();
+
+    if (action.startsWith('digit:')) { handleDigit(action.slice(6)); return; }
+    if (action.startsWith('search:')) { handleSearchChar(action.slice(7)); return; }
+
+    if (action === 'up') {
+      if (menuOpen) menuMoveInGrid('up');
+      else { switchByOffset(-1); showInfo(); }
+    } else if (action === 'down') {
+      if (menuOpen) menuMoveInGrid('down');
+      else { switchByOffset(1); showInfo(); }
+    } else if (action === 'left') {
+      if (menuOpen) {
+        if (focusArea === 'tabs') menuSwitchTab(-1);
+        else menuMoveInGrid('left');
+      }
+    } else if (action === 'right') {
+      if (menuOpen) {
+        if (focusArea === 'tabs') menuSwitchTab(1);
+        else menuMoveInGrid('right');
+      }
+    } else if (action === 'ok') {
+      if (screensaverVisible) { hideScreensaver(); return; }
+      if (menuOpen) menuActivate();
+      else openMenu();
+    } else if (action === 'back') {
+      if (menuOpen) closeMenu();
+      else if (!goBackNav()) window.location.href = '/watch';
+    } else if (action === 'info') {
+      if (infoVisible) hideInfo();
+      else showInfo();
+    }
+  }
+
+  function isLetter(ch) {
+    if (!ch || ch.length !== 1) return false;
+    const code = ch.charCodeAt(0);
+    if (code >= 0x0041 && code <= 0x005A) return true;       // A-Z
+    if (code >= 0x0061 && code <= 0x007A) return true;       // a-z
+    if (code >= 0x0410 && code <= 0x044F) return true;       // А-я
+    if (code === 0x0401 || code === 0x0451) return true;     // Ё / ё
+    return false;
+  }
+
+  function classifyKey(e) {
+    const key = e.key || '';
+    const code = e.keyCode || 0;
+    if (key === 'ArrowUp'    || code === 38) return 'up';
+    if (key === 'ArrowDown'  || code === 40) return 'down';
+    if (key === 'ArrowLeft'  || code === 37) return 'left';
+    if (key === 'ArrowRight' || code === 39) return 'right';
+    if (key === 'Enter'      || code === 13 || code === 29443) return 'ok';
+    if (key === 'Escape'     || code === 27 || code === 461 || code === 10009) return 'back';
+    if (key === 'i' || key === 'I' || code === 73) return 'info';
+    if (key >= '0' && key <= '9') return 'digit:' + key;
+    if (code >= 48 && code <= 57) return 'digit:' + String.fromCharCode(code);
+    if (code >= 96 && code <= 105) return 'digit:' + String.fromCharCode(code - 48);
+    if (isLetter(key)) return 'search:' + key;
+    return null;
+  }
+
+  // -------------- GLOBAL LISTENERS --------------
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+
+    // Any key = activity
+    resetActivity();
+
+    // If screensaver is on, swallow the first key and hide it
+    if (screensaverVisible) {
+      e.preventDefault();
+      return;
+    }
+
+    const action = classifyKey(e);
+    if (action) { e.preventDefault(); handleAction(action); }
+  });
+
+  document.addEventListener('mousemove', () => { resetActivity(); }, { passive: true });
+  document.addEventListener('touchstart', () => { resetActivity(); }, { passive: true });
+
+  menuGrid.addEventListener('click', (e) => {
+    const card = e.target.closest('.menu-card');
+    if (!card) return;
+    focusedIndex = parseInt(card.dataset.index, 10);
+    focusArea = 'grid';
+    menuActivate();
+  });
+  document.getElementById('menu-close').addEventListener('click', closeMenu);
+  video.addEventListener('click', () => {
+    resetActivity();
+    if (screensaverVisible) return;
+    if (!menuOpen) openMenu();
+  });
+  screensaverEl.addEventListener('click', () => { resetActivity(); });
+
+  window.addEventListener('resize', () => {
+    if (menuOpen) cardsPerRow = computeCardsPerRow();
+  });
+
+  // -------------- REFRESH --------------
+  async function refreshChannels() {
+    try {
+      const r = await fetch(API_LIST, { cache: 'no-store' });
+      if (!r.ok) return;
+      channels = await r.json();
+      if (menuOpen) {
+        buildFiltered();
+        if (focusedIndex >= filteredChannels.length) focusedIndex = 0;
+        renderMenu();
+      }
+      updateInfoPanel();
+    } catch (e) {}
+  }
+
+  async function init() {
+    await refreshChannels();
+    await loadChannel(INITIAL_CHANNEL_ID, true);
+    showInfo();
+    refreshTimer = setInterval(refreshChannels, 30000);
+    startScreensaverWatcher();
+  }
+
+  init();
+})();
+</script>
+{% endblock %}

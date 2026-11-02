@@ -1,0 +1,32 @@
+<header class="nav">
+  <a class="brand" href="{{ url_for('dashboard') }}">{{ title }}</a>
+  <nav>
+    {% if current_user %}
+      <a href="{{ url_for('dashboard') }}">Дашборд</a>
+
+      {% if edition != 'lite' %}
+        <a href="{{ url_for('hardware_page') }}">Оборудование</a>
+        <a href="{{ url_for('adapters_page') }}">Адаптеры</a>
+      {% endif %}
+
+      <a href="{{ url_for('channels_page') }}">Локальные каналы</a>
+
+      {% if viewer_enabled %}
+        <a class="viewer-link" href="{{ viewer_url }}" target="_blank" rel="noopener">
+          📺 Открыть Viewer (порт {{ viewer_port }})
+        </a>
+      {% endif %}
+
+      <a href="{{ url_for('epg_page') }}">EPG</a>
+
+      <a href="{{ url_for('events_page') }}">События</a>
+      <a href="{{ url_for('settings.settings_page') }}">Настройки</a>
+      <a href="{{ url_for('about_page') }}">О программе</a>
+
+      <span class="user">{{ current_user.username }} ({{ current_user.role }})</span>
+      <a class="logout" href="{{ url_for('auth.logout') }}">Выйти</a>
+    {% else %}
+      <a href="{{ url_for('auth.login') }}">Войти</a>
+    {% endif %}
+  </nav>
+</header>

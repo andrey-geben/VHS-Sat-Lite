@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Data (runtime)
+data/vhs-sat.db
+data/vhs-sat.db-journal
+data/vhs-sat.db-wal
+data/vhs-sat.db-shm
+data/hls/
+data/pip/*.png
+data/pip/*.jpg
+data/ticker/*.txt
+data/bumpers/
+data/playlists/
+logs/
+
+# Secrets
+config.yaml
+config.local.yaml
+
+# Binaries
+bin/ffmpeg.exe
+bin/ffprobe.exe
+bin/*.dll
+bin/*.exe
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temp
+test_*
+*.tmp
+Новая папка/

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Создать канал — {{ title }}{% endblock %}
+{% block content %}
+<div class="ch-head">
+  <h1>Создать канал</h1>
+  <a href="{{ url_for('channels_page') }}" class="muted small">← к списку каналов</a>
+</div>
+
+<p class="muted" style="margin-bottom:1.5rem">
+  Выберите тип источника. Все каналы работают одинаково: HLS для браузера
+  и multicast для VLC/Kodi/приставок.
+</p>
+
+<div class="new-grid">
+  <a href="{{ url_for('channel_new_form', source_type='folder') }}" class="new-card">
+    <div class="new-icon">📁</div>
+    <div class="new-title">Из папки</div>
+    <div class="new-desc">Локальная папка с видеофайлами. Крутятся по кругу с опциональным bumper-анонсом.</div>
+  </a>
+  <a href="{{ url_for('channel_new_form', source_type='iptv') }}" class="new-card">
+    <div class="new-icon">📡</div>
+    <div class="new-title">IPTV</div>
+    <div class="new-desc">Один поток от провайдера или импорт целого M3U-плейлиста с выбором нужных каналов.</div>
+  </a>
+  <a href="{{ url_for('channel_new_form', source_type='camera') }}" class="new-card">
+    <div class="new-icon">📹</div>
+    <div class="new-title">Видеокамера</div>
+    <div class="new-desc">RTSP / HLS / HTTP live-поток одиночной камеры. «Двор», «Подъезд», «Дача».</div>
+  </a>
+  <a href="{{ url_for('channel_new_form', source_type='mosaic') }}" class="new-card">
+    <div class="new-icon">🎥</div>
+    <div class="new-title">Мозаика камер</div>
+    <div class="new-desc">Несколько камер (до 9) на одном экране, как в NVR. Каждая ячейка подписана.</div>
+  </a>
+</div>
+
+<section class="card" style="margin-top:2rem">
+  <h2>Подсказки</h2>
+  <ul class="muted small">
+    <li><strong>HLS</strong> — для браузеров и мобильных в домашней Wi-Fi. Viewer на порту <code>{{ viewer_port }}</code>.</li>
+    <li><strong>Multicast UDP</strong> — для VLC/Kodi/приставок. Адрес <code>udp://@239.1.1.1:5000</code>.</li>
+    <li><strong>Задержка</strong>: HLS — 8–15 сек, multicast — 1–2 сек.</li>
+    <li><strong>⚠ Лимит IPTV-провайдера.</strong> Обычно 1–3 подключения на аккаунт. Больше — тёмный экран.</li>
+    <li><strong>🔊 Звук</strong>: при <code>copy</code> в HLS попадает исходный аудиокодек. Если браузер молчит — <code>copy_video</code>.</li>
+    <li><strong>🎥 Мозаика</strong> — CPU-затратна. 4×1080p → 720p ≈ 15–25% одного ядра i5.</li>
+  </ul>
+</section>
+{% endblock %}

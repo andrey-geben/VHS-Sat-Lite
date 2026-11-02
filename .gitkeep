@@ -1,0 +1,6 @@
+New-Item -ItemType File -Path "bin\.gitkeep" -Force
+New-Item -ItemType File -Path "data\.gitkeep" -Force
+New-Item -ItemType File -Path "data\hls\.gitkeep" -Force
+New-Item -ItemType File -Path "data\pip\.gitkeep" -Force
+New-Item -ItemType File -Path "data\ticker\.gitkeep" -Force
+New-Item -ItemType File -Path "downloads\.gitkeep" -Force

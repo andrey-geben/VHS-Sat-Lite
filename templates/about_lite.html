@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}О программе — {{ title }}{% endblock %}
+{% block content %}
+<h1>О программе</h1>
+
+<section class="card">
+  <h2 style="margin:0">{{ title }}</h2>
+  <p class="muted small" style="margin:.2rem 0 .9rem">
+    версия <code>{{ about.version }}</code>
+    · редакция <code>Windows Lite</code>
+    · platform: <code>{{ platform }}</code>
+  </p>
+  <p>{{ about.description }}</p>
+  <table class="about-table">
+    <tr><th>Автор</th>
+        <td>{{ about.author }}{% if about.contact %} · {{ about.contact }}{% endif %}</td></tr>
+    {% if about.repo_url %}
+    <tr><th>Репозиторий</th>
+        <td><a href="{{ about.repo_url }}" target="_blank" rel="noopener">{{ about.repo_url }}</a></td></tr>
+    {% endif %}
+    {% if about.based_on %}
+    <tr><th>Основа архитектуры</th>
+        <td>
+          <a href="{{ about.based_on.url }}" target="_blank" rel="noopener">
+            {{ about.based_on.name }}</a>
+          <div class="muted small">{{ about.based_on.note }}</div>
+        </td></tr>
+    {% endif %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Эта редакция</h2>
+  <p>
+    <strong>Windows Lite</strong> — сборка только для локальных каналов
+    из папок. В ней <em>нет</em> работы с DVB-S/S2, CAM/CI и multicast
+    через <code>dvblast</code>. Для этого нужна полная версия на Linux.
+  </p>
+  <p class="muted small">
+    Если нужна спутниковая ретрансляция — разверните полную версию из
+    исходников на Linux. Этот .exe — для дома и локальных папок с видео.
+  </p>
+</section>
+
+<section class="card">
+  <h2>Технологии</h2>
+  <ul class="about-list">
+    <li><strong>Flask</strong> — веб-интерфейс, REST API, сессии</li>
+    <li><strong>SQLite</strong> — каналы, состояние каналов, события</li>
+    <li><strong>ffmpeg</strong> — HLS, multicast, bumper-анонсы, запись (позже)</li>
+    <li><strong>hls.js</strong> — веб-плеер в viewer для браузеров без нативного HLS</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Два порта</h2>
+  <table class="about-table">
+    <tr>
+      <th>Админка</th>
+      <td>порт <code>{{ admin_port }}</code>
+        · <a href="http://{{ request.host.split(':')[0] }}:{{ admin_port }}/">открыть</a>
+        <div class="muted small">Управление каналами, события, настройки</div>
+      </td>
+    </tr>
+    {% if viewer_enabled %}
+    <tr>
+      <th>Viewer</th>
+      <td>порт <code>{{ viewer_port }}</code>
+        · <a href="{{ viewer_url }}" target="_blank" rel="noopener">открыть</a>
+        <div class="muted small">Публичная страница просмотра (для ТВ / телефона)</div>
+      </td>
+    </tr>
+    {% endif %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Юридическое предупреждение</h2>
+  <div class="flash flash-warn" style="margin:0">
+    VHS-Sat Lite предназначен для личного / внутреннего использования
+    с легальным видеоконтентом. Публичная ретрансляция охраняемых
+    авторским правом материалов без разрешения правообладателя
+    запрещена. Ответственность за соблюдение законодательства — на
+    операторе сервера.
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "viewer_base.html" %}
+{% block title %}О программе — {{ title }}{% endblock %}
+{% block content %}
+<div class="viewer-wrap about-viewer">
+  <header class="viewer-head">
+    <h1>О программе</h1>
+    <a class="back" href="/watch">← Все каналы</a>
+  </header>
+
+  <section class="viewer-card">
+    <p class="muted small" style="margin:0 0 .4rem">
+      версия <code>{{ about.version }}</code>
+    </p>
+    <p>{{ about.description }}</p>
+    <p class="muted small" style="margin:0">
+      Автор: {{ about.author }}{% if about.contact %} · {{ about.contact }}{% endif %}
+      {% if about.repo_url %}
+        · <a href="{{ about.repo_url }}" target="_blank" rel="noopener">репозиторий</a>
+      {% endif %}
+    </p>
+    {% if about.based_on %}
+      <p class="muted small" style="margin:.6rem 0 0">
+        Основа архитектуры —
+        <a href="{{ about.based_on.url }}" target="_blank" rel="noopener">
+          {{ about.based_on.name }}
+        </a>.
+      </p>
+    {% endif %}
+  </section>
+
+  <section class="viewer-card">
+    <h2 style="margin-top:0">Ограничения</h2>
+    <p class="muted small">
+      Production — только Linux (DVB-S/S2, CAM/CI, multicast через <code>dvblast</code>).
+      Windows — для разработки и тестирования интерфейса на демо-данных.
+    </p>
+    <p class="muted small">
+      CI+ не поддерживается. Проект рассчитан на личное / внутреннее
+      использование с легальной подпиской; ретрансляция за пределы
+      частного домохозяйства — лицензируемая деятельность.
+    </p>
+  </section>
+
+  <p class="viewer-empty small" style="border:0; padding: 1rem 0 0">
+    <a href="/watch">← вернуться к каналам</a>
+  </p>
+</div>
+{% endblock %}

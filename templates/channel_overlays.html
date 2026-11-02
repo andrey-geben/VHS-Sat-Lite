@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Оверлеи «{{ channel.name }}» — {{ title }}{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>🎬 Оверлеи — {{ channel.name }}</h1>
+  <a href="{{ url_for('channels_page') }}" class="muted small">← к списку каналов</a>
+  <a href="{{ url_for('channel_edit_form', cid=channel.id) }}" class="muted small" style="margin-left:1rem">✎ к настройкам канала</a>
+</div>
+
+<div class="channel-card {{ 'running' if channel.running else '' }}" style="margin-bottom:1rem">
+  <p class="muted small" style="margin:0">
+    {% if channel.running %}
+      ⚠ Канал сейчас в эфире. Сохранение настроек PiP <strong>перезапустит</strong>
+      канал. Ticker-расписания применяются scheduler-ом без перезапуска (см. ниже).
+    {% else %}
+      Канал не запущен. Изменения вступят в силу при следующем старте.
+    {% endif %}
+  </p>
+</div>
+
+<div class="card" style="border-left:4px solid #e0a84a; margin-bottom:1rem">
+  <h2>⚠ Важно про PiP и расписания</h2>
+  <p class="muted small" style="margin:.3rem 0">
+    <strong>Бегущая строка</strong> с расписанием меняется <strong>без разрыва</strong>
+    HLS — FFmpeg перечитывает текстовый файл (задержка ≤ 30 секунд).
+  </p>
+  <p class="muted small" style="margin:.3rem 0">
+    <strong>PiP-картинка</strong> с расписанием требует
+    <strong>двух процессов FFmpeg</strong> на канал. Нагрузка на CPU практически
+    та же, но +50–100 МБ RAM и <strong>разрыв HLS 5–10 секунд</strong> при смене
+    картинки по расписанию.
+  </p>
+  <p class="muted small" style="margin:.3rem 0">
+    Расписания PiP, добавленные после старта канала, вступят в силу только после
+    перезапуска. Ticker-расписания — без перезапуска.
+  </p>
+</div>
+
+<section class="card">
+  <h2>Бегущие строки</h2>
+  <p class="muted small">
+    Можно создавать несколько. Расписание ссылается на одну из них через dropdown.
+    Не более одной «по умолчанию» на канал — показывается, когда нет активного
+    ticker-расписания. При пересечении расписаний — создание запрещается.
+  </p>
+
+  {% if tickers %}
+    <table style="width:100%; border-collapse:collapse">
+      <thead>
+        <tr>
+          <th style="text-align:left; width:40px">ID</th>
+          <th style="text-align:left; width:140px">Название</th>
+          <th style="text-align:left">Текст</th>
+          <th style="text-align:left; width:70px">Скор.</th>
+          <th style="text-align:left; width:70px">Разм.</th>
+          <th style="text-align:left; width:100px">Цвет</th>
+          <th style="text-align:left; width:120px">Фон</th>
+          <th style="text-align:left; width:150px">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickers %}
+          <tr style="border-top:1px solid #333">
+            <td>
+              {{ t.id }}
+              {% if t.is_default %}<br><span class="badge" style="font-size:.7em">по умолч.</span>{% endif %}
+            </td>
+            <td><input name="name" value="{{ t.name }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td><input name="text" value="{{ t.text }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td><input name="speed" type="number" min="20" max="400" value="{{ t.speed }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td><input name="fontsize" type="number" min="10" max="72" value="{{ t.fontsize }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td><input name="color" value="{{ t.color }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td><input name="bgcolor" value="{{ t.bgcolor }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
+            <td>
+              <form id="ticker-upd-{{ t.id }}" method="post"
+                    action="{{ url_for('channel_ticker_update', cid=channel.id, tid=t.id) }}">
+              </form>
+              <button type="submit" form="ticker-upd-{{ t.id }}"
+                      class="ch-btn ch-btn-icon" title="Сохранить">💾</button>
+              <form method="post"
+                    action="{{ url_for('channel_ticker_delete', cid=channel.id, tid=t.id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('Удалить бегущую строку «{{ t.name }}» и все её расписания?')">
+                <button type="submit" class="ch-btn ch-btn-icon ch-btn-danger"
+                        title="Удалить">🗑</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Пока нет бегущих строк. Создайте первую ниже.</p>
+  {% endif %}
+
+  <h3 style="margin-top:1.4rem">Добавить бегущую строку</h3>
+  <form method="post" action="{{ url_for('channel_ticker_create', cid=channel.id) }}">
+    <label>Название
+      <input name="name" required placeholder="Ночной режим, Реклама, …" size="40">
+    </label>
+    <label>Текст
+      <input name="text" required size="80" placeholder="Внимание! …">
+    </label>
+    <label>Скорость, px/сек
+      <input name="speed" type="number" min="20" max="400" value="100">
+    </label>
+    <label>Размер шрифта, px
+      <input name="fontsize" type="number" min="10" max="72" value="24">
+    </label>
+    <label>Цвет текста
+      <input name="color" size="15" value="white"
+             placeholder="white, #FF0000, red@0.8">
+    </label>
+    <label>Цвет фона
+      <input name="bgcolor" size="15" value="black@0.5"
+             placeholder="black@0.5, none">
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" name="is_default"
+             {% if default_ticker %}disabled{% endif %}>
+      <span>сделать по умолчанию
+        {% if default_ticker %}(уже есть: «{{ default_ticker.name }}»){% endif %}
+      </span>
+    </label>
+    <button type="submit" class="btn-start">Добавить бегущую строку</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Picture-in-Picture (дефолт)</h2>
+  <p class="muted small">
+    Показывается, когда нет активного расписания PiP.
+  </p>
+  <form method="post" action="{{ url_for('channel_overlays_save', cid=channel.id) }}">
+    <label class="checkbox-label">
+      <input type="checkbox" name="pip_enabled"
+             {% if channel.pip_enabled %}checked{% endif %}>
+      <span>включить PiP по умолчанию</span>
+    </label>
+    <label>Режим
+      <select name="pip_mode">
+        <option value="none" {% if channel.pip_mode == 'none' or not channel.pip_mode %}selected{% endif %}>выключено</option>
+        <option value="image" {% if channel.pip_mode == 'image' %}selected{% endif %}>статичная картинка (PNG/JPEG)</option>
+        <option value="video" {% if channel.pip_mode == 'video' %}selected{% endif %} disabled>видео (скоро)</option>
+      </select>
+    </label>
+    <label>Позиция
+      <select name="pip_position">
+        <option value="top-right" {% if channel.pip_position == 'top-right' %}selected{% endif %}>справа сверху</option>
+        <option value="top-left" {% if channel.pip_position == 'top-left' %}selected{% endif %}>слева сверху</option>
+        <option value="bottom-right" {% if channel.pip_position == 'bottom-right' %}selected{% endif %}>справа снизу</option>
+        <option value="bottom-left" {% if channel.pip_position == 'bottom-left' %}selected{% endif %}>слева снизу</option>
+      </select>
+    </label>
+    <label>Ширина, px
+      <input name="pip_width" type="number" min="80" max="800"
+             value="{{ channel.pip_width or 320 }}">
+    </label>
+    <label>Отступ от края, px
+      <input name="pip_margin" type="number" min="0" max="100"
+             value="{{ channel.pip_margin or 16 }}">
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn-start">Сохранить PiP</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Загрузить картинку PiP (дефолт)</h2>
+  <p class="muted small">
+    Сохраняется как <code>data/pip/{{ channel.id }}.png</code>.
+  </p>
+  <form method="post"
+        action="{{ url_for('channels_pip_upload', cid=channel.id) }}"
+        enctype="multipart/form-data">
+    <label>Файл (PNG или JPEG, ≤ 5 МБ)
+      <input type="file" name="pip_file" accept="image/png,image/jpeg">
+    </label>
+    <button type="submit" class="btn-start">Загрузить</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Расписания</h2>
+  <p class="muted small">
+    Расписания переопределяют дефолтные настройки на своё время.
+    <code>start_time == end_time</code> — весь день. Окно через полночь
+    (например 22:00–06:00) поддерживается. Пересечение ticker-расписаний
+    <strong>запрещено</strong> — при попытке создать будет ошибка.
+  </p>
+  <p class="muted small">
+    Для <code>pip_image</code>-расписаний картинка загружается через 📤 в строке таблицы.
+    Сохраняется как <code>data/pip/&lt;channel_id&gt;_&lt;schedule_id&gt;.png</code>.
+    При удалении расписания картинка тоже удаляется.
+  </p>
+
+  {% if schedules %}
+    <table style="width:100%; border-collapse:collapse">
+      <thead>
+        <tr>
+          <th style="text-align:left">Тип</th>
+          <th style="text-align:left">Время</th>
+          <th style="text-align:left">Дни</th>
+          <th style="text-align:left">Priority</th>
+          <th style="text-align:left">Payload</th>
+          <th style="text-align:left">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in schedules %}
+          <tr style="border-top:1px solid #333; {% if not s.enabled %}opacity:.5{% endif %}">
+            <td>
+              {% if s.kind == 'ticker' %}
+                <code>ticker</code>
+                {% for t in tickers %}{% if t.id == s.ticker_id %}
+                  → {{ t.name }}
+                {% endif %}{% endfor %}
+              {% else %}
+                <code>{{ s.kind }}</code>
+              {% endif %}
+            </td>
+            <td>{{ s.start_time }}–{{ s.end_time }}</td>
+            <td>{{ s.days }}</td>
+            <td>{{ s.priority }}</td>
+            <td>
+              {% if s.kind == 'pip_image' %}
+                {% set pl = s.payload | fromjson_safe %}
+                {% if pl.file %}
+                  <code class="small">✓ {{ pl.file }}</code>
+                {% else %}
+                  <span class="muted small">картинка не загружена</span>
+                {% endif %}
+              {% else %}
+                <span class="muted small">—</span>
+              {% endif %}
+                        <td>
+              <form method="post"
+                    action="{{ url_for('channel_overlays_schedule_toggle', cid=channel.id, sid=s.id) }}"
+                    style="display:inline">
+                <button type="submit" class="ch-btn ch-btn-icon"
+                        title="{% if s.enabled %}Выключить{% else %}Включить{% endif %}">
+                  {% if s.enabled %}✓{% else %}✗{% endif %}
+                </button>
+              </form>
+              {% if s.kind == 'pip_image' %}
+                <form method="post"
+                      action="{{ url_for('channel_overlays_schedule_upload', cid=channel.id, sid=s.id) }}"
+                      enctype="multipart/form-data"
+                      style="display:inline">
+                  <label style="cursor:pointer" title="Загрузить PNG/JPEG">
+                    📤<input type="file" name="pip_file" accept="image/png,image/jpeg"
+                             onchange="this.form.submit()" style="display:none">
+                  </label>
+                </form>
+              {% endif %}
+              <form method="post"
+                    action="{{ url_for('channel_overlays_schedule_delete', cid=channel.id, sid=s.id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('Удалить расписание?')">
+                <button type="submit" class="ch-btn ch-btn-icon ch-btn-danger"
+                        title="Удалить">🗑</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Расписаний пока нет.</p>
+  {% endif %}
+
+  <h3 style="margin-top:1.4rem">Добавить ticker-расписание</h3>
+  {% if tickers %}
+    <form method="post"
+          action="{{ url_for('channel_overlays_schedule_create', cid=channel.id) }}">
+      <input type="hidden" name="kind" value="ticker">
+      <label>Бегущая строка
+        <select name="ticker_id" required>
+          <option value="">— выберите —</option>
+          {% for t in tickers %}
+            <option value="{{ t.id }}">{{ t.name }}{% if t.is_default %} (по умолчанию){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Начало (HH:MM)
+        <input name="start_time" type="time" required value="22:00">
+      </label>
+      <label>Конец (HH:MM)
+        <input name="end_time" type="time" required value="06:00">
+      </label>
+      <label>Дни недели
+        <span class="small">
+          {% for i, name in [(1,'Пн'),(2,'Вт'),(3,'Ср'),(4,'Чт'),(5,'Пт'),(6,'Сб'),(7,'Вс')] %}
+            <label style="display:inline; margin-right:.5rem">
+              <input type="checkbox" name="days" value="{{ i }}" {% if i <= 5 %}checked{% endif %}> {{ name }}
+            </label>
+          {% endfor %}
+        </span>
+      </label>
+      <label>Приоритет
+        <input name="priority" type="number" min="0" value="0">
+      </label>
+      <button type="submit" class="btn-start">Добавить ticker-расписание</button>
+    </form>
+  {% else %}
+    <p class="muted small">
+      Сначала создайте хотя бы одну бегущую строку в разделе «Бегущие строки» выше.
+    </p>
+  {% endif %}
+
+  <h3 style="margin-top:1.4rem">Добавить PiP-расписание</h3>
+  <p class="muted small">
+    Создаётся с пустым payload. Картинка для PiP-расписания будет загружаться
+    отдельной формой на шаге 7.3.
+  </p>
+  <form method="post"
+        action="{{ url_for('channel_overlays_schedule_create', cid=channel.id) }}">
+    <input type="hidden" name="kind" value="pip_image">
+    <label>Начало (HH:MM)
+      <input name="start_time" type="time" required value="08:00">
+    </label>
+    <label>Конец (HH:MM)
+      <input name="end_time" type="time" required value="10:00">
+    </label>
+    <label>Дни недели
+      <span class="small">
+        {% for i, name in [(1,'Пн'),(2,'Вт'),(3,'Ср'),(4,'Чт'),(5,'Пт'),(6,'Сб'),(7,'Вс')] %}
+          <label style="display:inline; margin-right:.5rem">
+            <input type="checkbox" name="days" value="{{ i }}" {% if i <= 5 %}checked{% endif %}> {{ name }}
+          </label>
+        {% endfor %}
+      </span>
+    </label>
+    <label>Приоритет
+      <input name="priority" type="number" min="0" value="0">
+    </label>
+    <button type="submit" class="btn-start">Добавить PiP-расписание</button>
+  </form>
+</section>
+
+{% endblock %}

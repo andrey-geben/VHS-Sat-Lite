@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Дашборд — Lite</h1>
+
+{% if not tools['ffmpeg'] %}
+<div class="flash flash-error">
+  ⚠️ <code>ffmpeg</code> не найден. Положите <code>ffmpeg.exe</code> в папку
+  <code>bin/</code> рядом с <code>VHS-Sat-Lite.exe</code> (или установите
+  ffmpeg в PATH). Без него локальные каналы работать не будут.
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>Локальные каналы</h2>
+  {% if channels %}
+    <table>
+      <tr><th>ID</th><th>Название</th><th>Статус</th><th>Сейчас</th></tr>
+      {% for ch in channels %}
+        <tr>
+          <td>{{ ch.id }}</td>
+          <td><a href="{{ url_for('channels_page') }}">{{ ch.name }}</a></td>
+          <td>{{ 'LIVE' if ch.running else 'OFFLINE' }}</td>
+          <td>{{ ch.current_file or '—' }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p class="muted small" style="margin-top:.6rem">
+      <a href="{{ url_for('channels_page') }}">Управление каналами →</a>
+      {% if viewer_enabled %}
+        · <a href="{{ viewer_url }}" target="_blank" rel="noopener">Открыть Viewer →</a>
+      {% endif %}
+    </p>
+  {% else %}
+    <p class="muted">Каналов нет. <a href="{{ url_for('channels_page') }}">Создать первый →</a></p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Утилиты</h2>
+  <ul class="tools-list">
+    {% for name, path in tools.items() %}
+      <li>
+        {% if path %}
+          <span class="ok">✓</span> <code>{{ name }}</code>
+          <span class="muted small">{{ path }}</span>
+        {% else %}
+          <span class="missing">✗</span> <code>{{ name }}</code>
+          <span class="muted small">не найден</span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if viewer_enabled %}
+<div class="card viewer-banner">
+  <div>
+    <strong>📺 Viewer</strong> — публичная страница просмотра каналов для
+    телевизора и телефона в домашней Wi-Fi.
+  </div>
+  <code><a href="{{ viewer_url }}" target="_blank" rel="noopener">{{ viewer_url }}</a></code>
+</div>
+{% endif %}
+{% endblock %}

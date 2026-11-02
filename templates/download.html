@@ -1,0 +1,87 @@
+{% extends "viewer_base.html" %}
+{% block title %}Приложение для Android TV — {{ title }}{% endblock %}
+{% block content %}
+<div class="viewer-wrap download-viewer">
+  <header class="viewer-head">
+    <h1>📱 Приложение для Android TV</h1>
+    <a class="back" href="/watch">← Все каналы</a>
+  </header>
+
+  {% if not apk %}
+    <div class="viewer-card">
+      <p><strong>APK-файл не найден на сервере.</strong></p>
+      <p class="muted small">
+        Положите файл <code>*.apk</code> в папку <code>downloads/</code>
+        рядом с <code>server.py</code> (или рядом с <code>.exe</code> в Lite-версии)
+        и обновите эту страницу.
+      </p>
+    </div>
+  {% else %}
+    <div class="viewer-card">
+      <div class="download-info">
+        <div class="download-icon">📱</div>
+        <div>
+          <div class="download-title">VHS-Sat TV</div>
+          <div class="muted small">
+            {{ apk.name }} · {{ apk_size_mb }} MB
+          </div>
+        </div>
+      </div>
+      <a href="/download/apk" class="download-btn">⬇ Скачать APK</a>
+    </div>
+
+    <div class="viewer-card">
+      <h2>Как установить</h2>
+      <ol class="download-steps">
+        <li>
+          <strong>На телевизоре</strong> установите бесплатное приложение
+          <a href="https://play.google.com/store/apps/details?id=com.esaba.downloader"
+             target="_blank" rel="noopener">Downloader</a>
+          из Google Play.
+        </li>
+        <li>
+          В Downloader откройте <strong>Browser</strong> и введите адрес:
+          <div class="download-url"><code>{{ download_url }}</code></div>
+        </li>
+        <li>
+          Скачайте APK и установите. Если появится запрос
+          «Разрешить установку из неизвестных источников» — разрешите.
+        </li>
+        <li>
+          Запустите приложение. При первом запуске введите адрес сервера:
+          <div class="download-url"><code>{{ server_url }}</code></div>
+          <div class="muted small">
+            Если что-то пошло не так — настройки в приложении можно
+            изменить позже.
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    {% if qr_data_uri %}
+    <div class="viewer-card download-qr-card">
+      <h2>QR-код для скачивания</h2>
+      <div class="download-qr">
+        <img src="{{ qr_data_uri }}" alt="QR-код для скачивания APK" width="240" height="240">
+      </div>
+      <p class="muted small">
+        Отсканируйте телефоном → скачайте APK → отправьте на ТВ
+        (например, через приложение «Send Files to TV» из Google Play).
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="viewer-card">
+      <h2>Для продвинутых — через ADB</h2>
+      <p class="muted small">
+        Если ТВ подключён по ADB (USB или Wi-Fi) — установка напрямую:
+      </p>
+      <pre class="download-code">adb install -r {{ apk.name }}</pre>
+    </div>
+  {% endif %}
+
+  <p class="viewer-empty small" style="border:0; padding: 1rem 0 0">
+    <a href="/watch">← вернуться к каналам</a>
+  </p>
+</div>
+{% endblock %}

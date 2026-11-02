@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Импорт IPTV — {{ title }}{% endblock %}
+{% block content %}
+<h1>Импорт IPTV-каналов</h1>
+<p class="muted small">
+  Найдено каналов: <strong>{{ entries|length }}</strong>
+  {% if source_url %}· источник: <code>{{ source_url }}</code>{% endif %}
+</p>
+
+<form method="post" action="{{ url_for('channels_iptv_bulk_import') }}">
+  <section class="card">
+    <h2>Параметры для всех выбранных</h2>
+    <fieldset>
+      <legend>Кодеки</legend>
+      <label>Стратегия
+        <select name="codec_strategy">
+          <option value="auto">auto (для iptv = copy)</option>
+          <option value="copy">copy — быстро, если провайдер даёт TS-ready (H.264 + AAC)</option>
+          <option value="copy_video">copy_video — видео без изменений, звук → AAC (если провайдер даёт AC3)</option>
+          <option value="encode">encode — перекодировать (совместимо с любым браузером)</option>
+        </select>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>Выходы</legend>
+      <label><input type="checkbox" name="hls_enabled" checked> HLS</label>
+      <label><input type="checkbox" name="multicast_enabled"> Multicast (порты будут назначены по порядку)</label>
+      <label>Multicast адрес <input name="multicast_addr" value="239.1.1.1"></label>
+      <label>Первый multicast порт <input name="multicast_port" type="number" value="5000"></label>
+    </fieldset>
+  </section>
+
+  <section class="card">
+    <h2>Каналы ({{ entries|length }})</h2>
+    <p class="muted small">
+      Имя можно изменить прямо здесь — оно станет названием канала.
+    </p>
+    <table class="iptv-table">
+      <tr>
+        <th style="width:3%"><input type="checkbox" id="select-all" checked></th>
+        <th style="width:35%">Название</th>
+        <th style="width:10%">Группа</th>
+        <th style="width:52%">URL</th>
+      </tr>
+      {% for e in entries %}
+        <tr>
+          <td><input type="checkbox" class="row-check" checked></td>
+          <td><input name="name" value="{{ e.name }}" class="row-name"></td>
+          <td class="muted small">{{ e.group or '—' }}</td>
+          <td><input name="url" value="{{ e.url }}" class="row-url" readonly></td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p class="muted small" style="margin-top:.8rem">
+      Строки без галочки пропускаются. Дубли по URL будут пропущены автоматически.
+    </p>
+    <button type="submit">Импортировать выбранные</button>
+    <a href="{{ url_for('channels_page') }}" class="muted small"
+       style="margin-left:1rem">← отмена</a>
+  </section>
+</form>
+
+<script>
+document.getElementById('select-all').addEventListener('change', (e) => {
+  document.querySelectorAll('.row-check').forEach(cb => cb.checked = e.target.checked);
+});
+// при снятии галочки на строке — исключаем поля из submit
+document.querySelector('form').addEventListener('submit', (e) => {
+  document.querySelectorAll('tr').forEach(tr => {
+    const cb = tr.querySelector('.row-check');
+    if (!cb || cb.checked) return;
+    tr.querySelectorAll('input[name]').forEach(inp => inp.disabled = true);
+  });
+});
+</script>
+
+<style>
+.iptv-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.iptv-table th, .iptv-table td { padding: 0.3rem 0.4rem; border-bottom: 1px solid #e6ecf0; }
+.iptv-table input[type="text"], .iptv-table input:not([type]) { width: 100%; }
+.iptv-table .row-url { font-family: monospace; font-size: 0.8rem; color: #6a7a86; }
+</style>
+{% endblock %}

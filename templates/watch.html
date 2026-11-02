@@ -1,0 +1,88 @@
+{% extends "viewer_base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="viewer-wrap">
+  <header class="viewer-head">
+    <h1>{{ title }}</h1>
+    <span class="viewer-hint muted small" id="viewer-hint">
+      обновляется автоматически
+    </span>
+  </header>
+
+  <div class="watch-grid" id="watch-grid"></div>
+
+  <div class="viewer-empty" id="viewer-empty" style="display:none">
+    <p class="viewer-empty-title">Каналы ещё не созданы</p>
+    <p class="muted">Администратор может добавить их на
+      <a href="{{ admin_url }}channels">{{ admin_url }}channels</a>
+    </p>
+    <p class="muted small">Эта страница обновится автоматически,
+      как только появится первый канал.</p>
+  </div>
+
+  {% if has_apk %}
+  <a href="/download" class="download-banner">
+    <span class="download-banner-icon">📱</span>
+    <span class="download-banner-text">
+      <strong>Приложение для Android TV</strong>
+      <span class="muted small">Смотрите каналы с пульта, без браузера</span>
+    </span>
+    <span class="download-banner-arrow">→</span>
+  </a>
+  {% endif %}
+</div>
+
+<script>
+const GRID = document.getElementById('watch-grid');
+const EMPTY = document.getElementById('viewer-empty');
+const HINT = document.getElementById('viewer-hint');
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+function renderGrid(channels) {
+  if (!channels.length) {
+    GRID.innerHTML = '';
+    EMPTY.style.display = 'block';
+    return;
+  }
+  EMPTY.style.display = 'none';
+  GRID.innerHTML = channels.map((ch, i) => `
+    <a class="watch-card ${ch.running ? 'live' : 'off'}"
+       href="/watch/${ch.id}">
+      <div class="watch-num">${ch.channel_number || ''}</div>
+      <div class="watch-name">${esc(ch.name)}</div>
+      <div class="watch-status">${ch.running ? 'LIVE' : 'OFFLINE'}</div>
+      ${ch.running && ch.epg_now
+        ? `<div class="watch-now">${esc(ch.epg_now)}</div>` : ''}
+    </a>
+  `).join('');
+}
+
+async function refresh() {
+  try {
+    const res = await fetch('/api/channels', { cache: 'no-store' });
+    if (!res.ok) return;
+    const channels = await res.json();
+    renderGrid(channels);
+    HINT.textContent = 'обновлено ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    HINT.textContent = 'нет связи с сервером, повтор…';
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key >= '1' && e.key <= '9') {
+    const i = parseInt(e.key, 10) - 1;
+    const cards = GRID.querySelectorAll('.watch-card');
+    if (cards[i]) cards[i].click();
+  }
+});
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+{% endblock %}

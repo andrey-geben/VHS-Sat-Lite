@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Создать — {{ title }}{% endblock %}
+{% block content %}
+<div class="ch-head">
+  <h1>
+    {% if form_type == 'folder' %}📁 Канал из папки
+    {% elif form_type == 'iptv' %}📡 IPTV-канал
+    {% elif form_type == 'camera' %}📹 Канал-камера
+    {% elif form_type == 'mosaic' %}🎥 Мозаика камер
+    {% endif %}
+  </h1>
+  <a href="{{ url_for('channels_new_choice') }}" class="muted small">← другой тип</a>
+</div>
+
+{% if form_type == 'folder' %}
+<form method="post" action="{{ url_for('channels_create') }}">
+  <input type="hidden" name="source_type" value="folder">
+  <section class="card">
+    <h2>Основное</h2>
+    <label>Номер канала <input name="channel_number" type="number" min="1" placeholder="авто, если пусто"></label>
+    <label>Название канала <input name="name" required placeholder="Детский, Музыка, Кино…"></label>
+    <label>Папка с видео (полный путь) <input name="folder" required placeholder="D:\Video\Cartoons"></label>
+    <fieldset>
+      <legend>Ротация файлов</legend>
+      <label>Алгоритм
+        <select name="rotation">
+          <option value="random">случайно</option>
+          <option value="mtime_asc">по дате изменения (старые → новые)</option>
+          <option value="mtime_desc">по дате изменения (новые → старые)</option>
+          <option value="name">по имени (A → Z)</option>
+        </select>
+      </label>
+      <label class="checkbox-label"><input type="checkbox" name="reshuffle_on_loop"><span>перемешивать при каждом цикле</span></label>
+    </fieldset>
+  </section>
+  <section class="card">
+    <h2>Кодеки</h2>
+    <label>Стратегия
+      <select name="codec_strategy">
+        <option value="auto">auto</option>
+        <option value="copy">copy</option>
+        <option value="copy_video">copy_video</option>
+        <option value="encode">encode</option>
+      </select>
+    </label>
+    <label>Расширения файлов <input name="file_extensions" value="mp4,mkv,avi,ts,mov,m4v,webm"></label>
+  </section>
+  <section class="card">
+    <h2>Анонс следующего файла</h2>
+    <label class="checkbox-label"><input type="checkbox" name="bumper_enabled" checked><span>показывать bumper перед каждым файлом</span></label>
+    <label>Длительность bumper, сек <input name="bumper_duration_sec" type="number" min="2" max="15" value="5"></label>
+  </section>
+  <section class="card">
+    <h2>Выходы</h2>
+    <label class="checkbox-label"><input type="checkbox" name="hls_enabled" checked><span>HLS</span></label>
+    <label class="checkbox-label"><input type="checkbox" name="multicast_enabled"><span>Multicast UDP</span></label>
+    <label>Multicast адрес <input name="multicast_addr" value="239.1.1.1"></label>
+    <label>Multicast порт <input name="multicast_port" type="number" value="5000"></label>
+  </section>
+  <div class="form-actions">
+    <button type="submit" class="btn-start">Создать канал</button>
+    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
+  </div>
+</form>
+
+{% elif form_type == 'iptv' %}
+<section class="card">
+  <h2>Импорт плейлиста провайдера</h2>
+  <form method="post" action="{{ url_for('channels_iptv_import') }}" enctype="multipart/form-data">
+    <label>URL плейлиста <input name="url" placeholder="http://provider.example/playlist.m3u"></label>
+    <label>…или файл <input type="file" name="file" accept=".m3u,.m3u8,text/plain"></label>
+    <button type="submit">Загрузить и выбрать каналы</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Или один поток вручную</h2>
+  <form method="post" action="{{ url_for('channels_create_stream') }}">
+    <input type="hidden" name="source_type" value="iptv">
+    <label>Номер <input name="channel_number" type="number" min="1"></label>
+    <label>Название <input name="name" required></label>
+    <label>URL потока <input name="stream_url" required></label>
+    <label>Стратегия
+      <select name="codec_strategy">
+        <option value="auto">auto</option>
+        <option value="copy">copy</option>
+        <option value="copy_video">copy_video</option>
+        <option value="encode">encode</option>
+      </select>
+    </label>
+    <label class="checkbox-label"><input type="checkbox" name="hls_enabled" checked><span>HLS</span></label>
+    <label class="checkbox-label"><input type="checkbox" name="multicast_enabled"><span>Multicast</span></label>
+    <label>Multicast адрес <input name="multicast_addr" value="239.1.1.1"></label>
+    <label>Multicast порт <input name="multicast_port" type="number" value="5000"></label>
+    <div class="form-actions">
+      <button type="submit" class="btn-start">Создать IPTV-канал</button>
+      <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
+    </div>
+  </form>
+</section>
+
+{% elif form_type == 'camera' %}
+<form method="post" action="{{ url_for('channels_create_stream') }}">
+  <input type="hidden" name="source_type" value="camera">
+  <section class="card">
+    <h2>Основное</h2>
+    <label>Номер <input name="channel_number" type="number" min="1"></label>
+    <label>Название <input name="name" required placeholder="Двор, Подъезд…"></label>
+    <label>URL потока <input name="stream_url" required placeholder="rtsp://user:pass@192.168.1.10:554/..."></label>
+    <label>Логин (если не в URL) <input name="stream_user" autocomplete="off"></label>
+    <label>Пароль (если не в URL) <input name="stream_pass" type="password"></label>
+  </section>
+  <section class="card">
+    <h2>Кодеки</h2>
+    <label>Стратегия
+      <select name="codec_strategy">
+        <option value="auto">auto (для камеры = encode)</option>
+        <option value="copy_video">copy_video</option>
+        <option value="encode">encode</option>
+        <option value="copy">copy</option>
+      </select>
+    </label>
+  </section>
+  <section class="card">
+    <h2>Выходы</h2>
+    <label class="checkbox-label"><input type="checkbox" name="hls_enabled" checked><span>HLS</span></label>
+    <label class="checkbox-label"><input type="checkbox" name="multicast_enabled"><span>Multicast</span></label>
+    <label>Multicast адрес <input name="multicast_addr" value="239.1.1.1"></label>
+    <label>Multicast порт <input name="multicast_port" type="number" value="5000"></label>
+  </section>
+  <div class="form-actions">
+    <button type="submit" class="btn-start">Создать канал-камеру</button>
+    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
+  </div>
+</form>
+
+{% elif form_type == 'mosaic' %}
+<form method="post" action="{{ url_for('channels_create') }}">
+  <input type="hidden" name="source_type" value="mosaic">
+  <div class="flash flash-warn">
+    <strong>Мозаика требует CPU.</strong> Звук в мозаике отключён. Камеры добавляются после создания.
+  </div>
+  <section class="card">
+    <h2>Контейнер</h2>
+    <label>Номер <input name="channel_number" type="number" min="1"></label>
+    <label>Название <input name="name" required placeholder="Двор, Объект…"></label>
+  </section>
+  <section class="card">
+    <h2>Выходы</h2>
+    <label class="checkbox-label"><input type="checkbox" name="hls_enabled" checked><span>HLS</span></label>
+    <label class="checkbox-label"><input type="checkbox" name="multicast_enabled"><span>Multicast</span></label>
+    <label>Multicast адрес <input name="multicast_addr" value="239.1.1.1"></label>
+    <label>Multicast порт <input name="multicast_port" type="number" value="5000"></label>
+  </section>
+  <div class="form-actions">
+    <button type="submit" class="btn-start">Создать канал-мозаику</button>
+    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
+  </div>
+</form>
+
+{% endif %}
+{% endblock %}

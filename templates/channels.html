@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Каналы — {{ title }}{% endblock %}
+{% block content %}
+
+{% if not tools['ffmpeg'] %}
+<div class="flash flash-error">
+  ⚠️ <code>ffmpeg</code> не найден в PATH. Каналы не смогут работать.
+</div>
+{% endif %}
+
+<div class="ch-head">
+  <h1>Каналы</h1>
+  <div class="ch-head-actions">
+    <a href="{{ url_for('channels_new_choice') }}" class="btn-create">
+      ➕ Создать канал
+    </a>
+    {% if live or offline %}
+      {% set total_to_delete = (live|length) + (offline|length) %}
+      <form method="post" action="{{ url_for('channels_clear') }}"
+            class="ch-clear-form"
+            onsubmit="return confirmClear({{ total_to_delete }}, '{{ current_type }}');">
+        <input type="hidden" name="type" value="{{ current_type }}">
+        <button type="submit" class="btn-clear-all">🗑 Удалить всё ({{ total_to_delete }})</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if viewer_enabled and (live or offline) %}
+<div class="playlist-card">
+  <div class="playlist-card-icon">📻</div>
+  <div class="playlist-card-body">
+    <div class="playlist-card-title">Плейлист запущенных каналов</div>
+    <div class="playlist-card-desc">
+      Загрузите эту ссылку в <strong>VLC</strong>, <strong>Kodi</strong>,
+      <strong>TiviMate</strong> или любое IPTV-приложение. Плейлист
+      обновляется автоматически — новые запущенные каналы появляются
+      в нём без перезагрузки.
+    </div>
+    <div class="playlist-card-urls">
+      <a href="{{ playlist_url }}"
+         target="_blank" rel="noopener" class="playlist-url">
+        📄 {{ playlist_url }}
+      </a>
+      <button type="button" class="playlist-copy btn-copy"
+              data-copy="{{ playlist_url }}"
+              title="Скопировать URL плейлиста">📋 копировать</button>
+    </div>
+    <div class="playlist-card-hint">
+      💡 Открывайте ссылку с <strong>LAN-IP</strong> (не с localhost),
+      чтобы телевизор и телефон могли её загрузить.
+      Для VLC на той же сети — <code>?format=multicast</code> (меньше задержка).
+      Только камеры — <code>?type=camera</code>.
+      {% if cfg_playlist_token_set %}
+        <br>🔒 <strong>Плейлист защищён токеном.</strong>
+        URL содержит <code>?token=...</code> — не публикуйте его.
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<nav class="ch-tabs">
+  <a href="{{ url_for('channels_page') }}" class="ch-tab {% if not current_type %}active{% endif %}">
+    Все <span class="ch-tab-count">{{ counts.total }}</span>
+  </a>
+  <a href="{{ url_for('channels_page', type='folder') }}" class="ch-tab {% if current_type == 'folder' %}active{% endif %}">
+    📁 Папки <span class="ch-tab-count">{{ counts.folder }}</span>
+  </a>
+  <a href="{{ url_for('channels_page', type='iptv') }}" class="ch-tab {% if current_type == 'iptv' %}active{% endif %}">
+    📡 IPTV <span class="ch-tab-count">{{ counts.iptv }}</span>
+  </a>
+  <a href="{{ url_for('channels_page', type='camera') }}" class="ch-tab {% if current_type == 'camera' %}active{% endif %}">
+    📹 Камеры <span class="ch-tab-count">{{ counts.camera }}</span>
+  </a>
+  <a href="{{ url_for('channels_page', type='mosaic') }}" class="ch-tab {% if current_type == 'mosaic' %}active{% endif %}">
+    🎥 Мозаики <span class="ch-tab-count">{{ counts.mosaic }}</span>
+  </a>
+</nav>
+
+{% if not live and not offline %}
+  <div class="ch-empty">
+    <p class="muted">
+      {% if current_type %}Каналов типа «{{ current_type }}» пока нет.
+        <a href="{{ url_for('channels_page') }}">Показать все</a>
+      {% else %}Каналов пока нет.{% endif %}
+    </p>
+    <p><a href="{{ url_for('channels_new_choice') }}" class="btn-create">➕ Создать первый канал</a></p>
+  </div>
+{% endif %}
+
+{% if live %}
+<section class="ch-section">
+  <h2 class="ch-section-title">
+    <span class="ch-section-dot live"></span>
+    В эфире <span class="muted">({{ live|length }})</span>
+  </h2>
+  <div class="ch-table-wrap">
+    <table class="ch-table">
+      <thead>
+        <tr>
+          <th class="ch-col-num">#</th>
+          <th class="ch-col-name">Канал</th>
+          <th class="ch-col-now">Сейчас</th>
+          <th class="ch-col-next">Далее</th>
+          <th class="ch-col-uptime">В эфире</th>
+          <th class="ch-col-outputs">Выходы</th>
+          <th class="ch-col-actions">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ch in live %}
+          <tr class="ch-row-live{% if ch.is_stale %} stale{% endif %}">
+            <td class="ch-col-num"><span class="ch-num">{{ ch.channel_number or '—' }}</span></td>
+            <td class="ch-col-name">
+              <span class="ch-type-icon">{% if ch.source_type == 'folder' %}📁{% elif ch.source_type == 'iptv' %}📡{% elif ch.source_type == 'camera' %}📹{% elif ch.source_type == 'mosaic' %}🎥{% else %}🛰️{% endif %}</span>
+              <span class="ch-name-text">{{ ch.name }}</span>
+              {% if ch.is_stale %}<span class="badge badge-warn">⚠ {{ ch.stale_human }}</span>{% endif %}
+            </td>
+            <td class="ch-col-now">
+              {% if ch.current_file %}{{ ch.current_file }}{% if ch.position_sec %} <span class="muted">· {{ ch.position_sec }} с</span>{% endif %}
+              {% elif ch.source_type == 'iptv' %}<span class="muted">прямой эфир</span>
+              {% elif ch.source_type == 'camera' %}<span class="muted">камера</span>
+              {% elif ch.source_type == 'mosaic' %}<span class="muted">мозаика</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="ch-col-next">{{ ch.epg_next or '—' }}</td>
+            <td class="ch-col-uptime">{{ ch.uptime_human or '—' }}</td>
+            <td class="ch-col-outputs">
+              {% if ch.hls_enabled %}<span class="ch-out-badge">HLS</span>{% endif %}
+              {% if ch.multicast_enabled %}<span class="ch-out-badge">UDP</span>{% endif %}
+            </td>
+            <td class="ch-col-actions">
+              <form method="post" action="{{ url_for('channels_stop', cid=ch.id) }}" style="display:inline"><button type="submit" class="ch-btn ch-btn-stop">⏸ Стоп</button></form>
+              <a href="{{ url_for('channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
+              <a href="{{ url_for('channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
+              <form method="post" action="{{ url_for('channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if offline %}
+<section class="ch-section">
+  <h2 class="ch-section-title">
+    <span class="ch-section-dot off"></span>
+    Остановлены <span class="muted">({{ offline|length }})</span>
+  </h2>
+  <div class="ch-table-wrap">
+    <table class="ch-table">
+      <thead>
+        <tr>
+          <th class="ch-col-num">#</th>
+          <th class="ch-col-name">Канал</th>
+          <th class="ch-col-info">Информация</th>
+          <th class="ch-col-outputs">Выходы</th>
+          <th class="ch-col-actions">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ch in offline %}
+          <tr class="ch-row-off">
+            <td class="ch-col-num"><span class="ch-num muted">{{ ch.channel_number or '—' }}</span></td>
+            <td class="ch-col-name">
+              <span class="ch-type-icon">{% if ch.source_type == 'folder' %}📁{% elif ch.source_type == 'iptv' %}📡{% elif ch.source_type == 'camera' %}📹{% elif ch.source_type == 'mosaic' %}🎥{% else %}🛰️{% endif %}</span>
+              <span class="ch-name-text">{{ ch.name }}</span>
+            </td>
+            <td class="ch-col-info muted">
+              {% if ch.source_type == 'folder' %}{{ ch.folder }}{% if ch.folder_files %} · {{ ch.folder_files }} файл(ов) · {{ ch.folder_size }}{% endif %}
+              {% elif ch.source_type in ('iptv', 'camera') %}{{ ch.stream_url }}
+              {% elif ch.source_type == 'mosaic' %}мозаика камер
+              {% else %}—{% endif %}
+            </td>
+            <td class="ch-col-outputs">
+              {% if ch.hls_enabled %}<span class="ch-out-badge">HLS</span>{% endif %}
+              {% if ch.multicast_enabled %}<span class="ch-out-badge">UDP</span>{% endif %}
+            </td>
+            <td class="ch-col-actions">
+              <form method="post" action="{{ url_for('channels_start', cid=ch.id) }}" style="display:inline"><button type="submit" class="ch-btn ch-btn-start">▶ Старт</button></form>
+              <a href="{{ url_for('channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
+              <a href="{{ url_for('channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
+              <form method="post" action="{{ url_for('channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<p class="muted small ch-footer-hint">
+  💡 Подсказки по настройке — на странице <a href="{{ url_for('channels_new_choice') }}">создания канала</a>.
+</p>
+
+<script>
+function confirmClear(count, typeFilter) {
+  const labels = { folder: 'канала(ов) из папок', iptv: 'IPTV-канала(ов)', camera: 'канала(ов)-камер', mosaic: 'канала(ов)-мозаик' };
+  const what = typeFilter ? (labels[typeFilter] || 'канала(ов)') : 'канала(ов) ВСЕХ типов';
+  return window.confirm(
+    'Удалить ' + count + ' ' + what + '?\\n\\n' +
+    'Будут:\\n  • остановлены запущенные каналы\\n  • удалены записи из БД\\n  • удалены HLS и плейлисты\\n\\n' +
+    'Это действие НЕЛЬЗЯ отменить.'
+  );
+}
+
+document.querySelectorAll('.btn-copy').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const text = btn.dataset.copy;
+    try {
+      await navigator.clipboard.writeText(text);
+      const original = btn.textContent;
+      btn.textContent = '✓ скопировано';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (e) {
+      prompt('Скопируйте вручную:', text);
+    }
+  });
+});
+</script>
+{% endblock %}
