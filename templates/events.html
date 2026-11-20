@@ -4,8 +4,9 @@
 <div class="section-head">
   <h1>События</h1>
   {% if events %}
-    <form method="post" action="{{ url_for('events_clear') }}"
+    <form method="post" action="{{ url_for('events.events_clear') }}"
           onsubmit="return confirm('Очистить журнал полностью?\n\nУдалятся все {{ events|length }} записей в logs/events.jsonl. Это действие нельзя отменить.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn-danger">Очистить журнал</button>
     </form>
   {% endif %}

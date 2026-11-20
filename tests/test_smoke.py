@@ -22,6 +22,9 @@ db.DB_PATH = TMP / "test.db"
 import server  # noqa: E402  (импорт после подмены БД)
 
 server.DATA_DIR = TMP / "data"
+for _name, _mod in list(sys.modules.items()):
+    if _name.startswith("routes."):
+        _mod.DATA_DIR = TMP / "data"
 server.app.config["TESTING"] = True
 
 
@@ -30,10 +33,13 @@ class VhsSmokeTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = server.app
 
+    TOKEN = "test-csrf-token"
+
     def _client(self, admin: bool = True):
         client = self.app.test_client()
-        if admin:
-            with client.session_transaction() as sess:
+        with client.session_transaction() as sess:
+            sess["_csrf_token"] = self.TOKEN
+            if admin:
                 sess["user"] = {"username": "admin", "role": "admin"}
         return client
 
@@ -43,7 +49,7 @@ class VhsSmokeTest(unittest.TestCase):
             r = self._client(admin=False).post(
                 "/setup",
                 data={"username": "HACKER", "password": "secret1",
-                      "password2": "secret1"},
+                      "password2": "secret1", "csrf_token": self.TOKEN},
                 follow_redirects=False,
             )
         self.assertEqual(r.status_code, 302)
@@ -79,11 +85,39 @@ class VhsSmokeTest(unittest.TestCase):
         ticker.write_text("test", encoding="utf-8")
 
         r = self._client().post(f"/channels/{cid}/delete",
+                                data={"csrf_token": self.TOKEN},
                                 follow_redirects=False)
         self.assertEqual(r.status_code, 302)
         self.assertIsNone(db.get_channel(cid))
         self.assertFalse(hls_dir.exists())
         self.assertFalse(ticker.exists())
+
+    def test_post_without_csrf_rejected(self):
+        r = self._client(admin=False).post("/setup", data={
+            "username": "x", "password": "secret1", "password2": "secret1",
+        })
+        self.assertEqual(r.status_code, 400)
+
+    def test_channel_lifecycle_via_http(self):
+        folder = TMP / "clips"
+        folder.mkdir(exist_ok=True)
+        (folder / "a.mp4").write_bytes(b"x")
+        client = self._client()
+        r = client.post("/channels/create", data={
+            "csrf_token": self.TOKEN, "name": "TEST-HTTP",
+            "source_type": "folder", "folder": str(folder),
+            "rotation": "random", "file_extensions": "mp4",
+            "codec_strategy": "auto", "hls_enabled": "on",
+        }, follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        cid = next(c["id"] for c in db.list_channels() if c["name"] == "TEST-HTTP")
+        for url in (f"/channels/{cid}/edit", f"/channels/{cid}/overlays",
+                    f"/api/channels/{cid}/state"):
+            self.assertEqual(client.get(url).status_code, 200, url)
+        r = client.post(f"/channels/{cid}/delete",
+                        data={"csrf_token": self.TOKEN}, follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertIsNone(db.get_channel(cid))
 
     def test_pages_render(self):
         client = self._client()

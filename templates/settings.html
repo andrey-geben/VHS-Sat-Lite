@@ -11,6 +11,7 @@
 <section class="card">
   <h2>Общие</h2>
   <form method="post" action="{{ url_for('settings.settings_save') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <fieldset>
       <legend>Сервер (админка)</legend>
@@ -105,6 +106,7 @@
   <h2>Смена пароля</h2>
   {% if current_user %}
     <form method="post" action="{{ url_for('settings.settings_password') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Текущий пароль
         <input name="old_password" type="password" required autocomplete="current-password">
       </label>

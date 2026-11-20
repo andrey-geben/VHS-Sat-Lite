@@ -9,6 +9,7 @@
     частного домохозяйства — лицензируемая деятельность.
   </p>
   <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Логин администратора <input name="username" autofocus required></label>
     <label>Пароль (≥ 6 символов) <input name="password" type="password" required></label>
     <label>Повторите пароль <input name="password2" type="password" required></label>

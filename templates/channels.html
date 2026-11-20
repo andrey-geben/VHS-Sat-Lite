@@ -11,14 +11,15 @@
 <div class="ch-head">
   <h1>Каналы</h1>
   <div class="ch-head-actions">
-    <a href="{{ url_for('channels_new_choice') }}" class="btn-create">
+    <a href="{{ url_for('channels.channels_new_choice') }}" class="btn-create">
       ➕ Создать канал
     </a>
     {% if live or offline %}
       {% set total_to_delete = (live|length) + (offline|length) %}
-      <form method="post" action="{{ url_for('channels_clear') }}"
+      <form method="post" action="{{ url_for('channels.channels_clear') }}"
             class="ch-clear-form"
             onsubmit="return confirmClear({{ total_to_delete }}, '{{ current_type }}');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="type" value="{{ current_type }}">
         <button type="submit" class="btn-clear-all">🗑 Удалить всё ({{ total_to_delete }})</button>
       </form>
@@ -61,19 +62,19 @@
 {% endif %}
 
 <nav class="ch-tabs">
-  <a href="{{ url_for('channels_page') }}" class="ch-tab {% if not current_type %}active{% endif %}">
+  <a href="{{ url_for('channels.channels_page') }}" class="ch-tab {% if not current_type %}active{% endif %}">
     Все <span class="ch-tab-count">{{ counts.total }}</span>
   </a>
-  <a href="{{ url_for('channels_page', type='folder') }}" class="ch-tab {% if current_type == 'folder' %}active{% endif %}">
+  <a href="{{ url_for('channels.channels_page', type='folder') }}" class="ch-tab {% if current_type == 'folder' %}active{% endif %}">
     📁 Папки <span class="ch-tab-count">{{ counts.folder }}</span>
   </a>
-  <a href="{{ url_for('channels_page', type='iptv') }}" class="ch-tab {% if current_type == 'iptv' %}active{% endif %}">
+  <a href="{{ url_for('channels.channels_page', type='iptv') }}" class="ch-tab {% if current_type == 'iptv' %}active{% endif %}">
     📡 IPTV <span class="ch-tab-count">{{ counts.iptv }}</span>
   </a>
-  <a href="{{ url_for('channels_page', type='camera') }}" class="ch-tab {% if current_type == 'camera' %}active{% endif %}">
+  <a href="{{ url_for('channels.channels_page', type='camera') }}" class="ch-tab {% if current_type == 'camera' %}active{% endif %}">
     📹 Камеры <span class="ch-tab-count">{{ counts.camera }}</span>
   </a>
-  <a href="{{ url_for('channels_page', type='mosaic') }}" class="ch-tab {% if current_type == 'mosaic' %}active{% endif %}">
+  <a href="{{ url_for('channels.channels_page', type='mosaic') }}" class="ch-tab {% if current_type == 'mosaic' %}active{% endif %}">
     🎥 Мозаики <span class="ch-tab-count">{{ counts.mosaic }}</span>
   </a>
 </nav>
@@ -82,10 +83,10 @@
   <div class="ch-empty">
     <p class="muted">
       {% if current_type %}Каналов типа «{{ current_type }}» пока нет.
-        <a href="{{ url_for('channels_page') }}">Показать все</a>
+        <a href="{{ url_for('channels.channels_page') }}">Показать все</a>
       {% else %}Каналов пока нет.{% endif %}
     </p>
-    <p><a href="{{ url_for('channels_new_choice') }}" class="btn-create">➕ Создать первый канал</a></p>
+    <p><a href="{{ url_for('channels.channels_new_choice') }}" class="btn-create">➕ Создать первый канал</a></p>
   </div>
 {% endif %}
 
@@ -131,10 +132,12 @@
               {% if ch.multicast_enabled %}<span class="ch-out-badge">UDP</span>{% endif %}
             </td>
             <td class="ch-col-actions">
-              <form method="post" action="{{ url_for('channels_stop', cid=ch.id) }}" style="display:inline"><button type="submit" class="ch-btn ch-btn-stop">⏸ Стоп</button></form>
-              <a href="{{ url_for('channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
-              <a href="{{ url_for('channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
-              <form method="post" action="{{ url_for('channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
+              <form method="post" action="{{ url_for('channels.channels_stop', cid=ch.id) }}" style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="ch-btn ch-btn-stop">⏸ Стоп</button></form>
+              <a href="{{ url_for('channels.channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
+              <a href="{{ url_for('overlays.channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
+              <form method="post" action="{{ url_for('channels.channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
             </td>
           </tr>
         {% endfor %}
@@ -180,10 +183,12 @@
               {% if ch.multicast_enabled %}<span class="ch-out-badge">UDP</span>{% endif %}
             </td>
             <td class="ch-col-actions">
-              <form method="post" action="{{ url_for('channels_start', cid=ch.id) }}" style="display:inline"><button type="submit" class="ch-btn ch-btn-start">▶ Старт</button></form>
-              <a href="{{ url_for('channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
-              <a href="{{ url_for('channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
-              <form method="post" action="{{ url_for('channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
+              <form method="post" action="{{ url_for('channels.channels_start', cid=ch.id) }}" style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="ch-btn ch-btn-start">▶ Старт</button></form>
+              <a href="{{ url_for('channels.channel_edit_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Настройки канала">✎</a>
+              <a href="{{ url_for('overlays.channel_overlays_form', cid=ch.id) }}" class="ch-btn ch-btn-icon" title="Оверлеи канала">🎬</a>
+              <form method="post" action="{{ url_for('channels.channels_delete', cid=ch.id) }}" style="display:inline" onsubmit="return confirm('Удалить канал «{{ ch.name }}»?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="ch-btn ch-btn-icon ch-btn-danger">🗑</button></form>
             </td>
           </tr>
         {% endfor %}
@@ -194,7 +199,7 @@
 {% endif %}
 
 <p class="muted small ch-footer-hint">
-  💡 Подсказки по настройке — на странице <a href="{{ url_for('channels_new_choice') }}">создания канала</a>.
+  💡 Подсказки по настройке — на странице <a href="{{ url_for('channels.channels_new_choice') }}">создания канала</a>.
 </p>
 
 <script>

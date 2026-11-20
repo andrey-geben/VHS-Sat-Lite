@@ -18,20 +18,20 @@
       {% for ch in channels %}
         <tr>
           <td>{{ ch.id }}</td>
-          <td><a href="{{ url_for('channels_page') }}">{{ ch.name }}</a></td>
+          <td><a href="{{ url_for('channels.channels_page') }}">{{ ch.name }}</a></td>
           <td>{{ 'LIVE' if ch.running else 'OFFLINE' }}</td>
           <td>{{ ch.current_file or '—' }}</td>
         </tr>
       {% endfor %}
     </table>
     <p class="muted small" style="margin-top:.6rem">
-      <a href="{{ url_for('channels_page') }}">Управление каналами →</a>
+      <a href="{{ url_for('channels.channels_page') }}">Управление каналами →</a>
       {% if viewer_enabled %}
         · <a href="{{ viewer_url }}" target="_blank" rel="noopener">Открыть Viewer →</a>
       {% endif %}
     </p>
   {% else %}
-    <p class="muted">Каналов нет. <a href="{{ url_for('channels_page') }}">Создать первый →</a></p>
+    <p class="muted">Каналов нет. <a href="{{ url_for('channels.channels_page') }}">Создать первый →</a></p>
   {% endif %}
 </section>
 

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="ch-head">
   <h1>Создать канал</h1>
-  <a href="{{ url_for('channels_page') }}" class="muted small">← к списку каналов</a>
+  <a href="{{ url_for('channels.channels_page') }}" class="muted small">← к списку каналов</a>
 </div>
 
 <p class="muted" style="margin-bottom:1.5rem">
@@ -12,22 +12,22 @@
 </p>
 
 <div class="new-grid">
-  <a href="{{ url_for('channel_new_form', source_type='folder') }}" class="new-card">
+  <a href="{{ url_for('channels.channel_new_form', source_type='folder') }}" class="new-card">
     <div class="new-icon">📁</div>
     <div class="new-title">Из папки</div>
     <div class="new-desc">Локальная папка с видеофайлами. Крутятся по кругу с опциональным bumper-анонсом.</div>
   </a>
-  <a href="{{ url_for('channel_new_form', source_type='iptv') }}" class="new-card">
+  <a href="{{ url_for('channels.channel_new_form', source_type='iptv') }}" class="new-card">
     <div class="new-icon">📡</div>
     <div class="new-title">IPTV</div>
     <div class="new-desc">Один поток от провайдера или импорт целого M3U-плейлиста с выбором нужных каналов.</div>
   </a>
-  <a href="{{ url_for('channel_new_form', source_type='camera') }}" class="new-card">
+  <a href="{{ url_for('channels.channel_new_form', source_type='camera') }}" class="new-card">
     <div class="new-icon">📹</div>
     <div class="new-title">Видеокамера</div>
     <div class="new-desc">RTSP / HLS / HTTP live-поток одиночной камеры. «Двор», «Подъезд», «Дача».</div>
   </a>
-  <a href="{{ url_for('channel_new_form', source_type='mosaic') }}" class="new-card">
+  <a href="{{ url_for('channels.channel_new_form', source_type='mosaic') }}" class="new-card">
     <div class="new-icon">🎥</div>
     <div class="new-title">Мозаика камер</div>
     <div class="new-desc">Несколько камер (до 9) на одном экране, как в NVR. Каждая ячейка подписана.</div>

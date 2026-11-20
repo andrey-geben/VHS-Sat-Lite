@@ -7,7 +7,8 @@
   {% if source_url %}· источник: <code>{{ source_url }}</code>{% endif %}
 </p>
 
-<form method="post" action="{{ url_for('channels_iptv_bulk_import') }}">
+<form method="post" action="{{ url_for('iptv.channels_iptv_bulk_import') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <section class="card">
     <h2>Параметры для всех выбранных</h2>
     <fieldset>
@@ -55,7 +56,7 @@
       Строки без галочки пропускаются. Дубли по URL будут пропущены автоматически.
     </p>
     <button type="submit">Импортировать выбранные</button>
-    <a href="{{ url_for('channels_page') }}" class="muted small"
+    <a href="{{ url_for('channels.channels_page') }}" class="muted small"
        style="margin-left:1rem">← отмена</a>
   </section>
 </form>

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="section-head">
   <h1>✎ Изменить канал</h1>
-  <a href="{{ url_for('channels_page') }}" class="muted small">← к списку каналов</a>
+  <a href="{{ url_for('channels.channels_page') }}" class="muted small">← к списку каналов</a>
 </div>
 
 <div class="channel-card {{ 'running' if channel.running else '' }}" style="margin-bottom:1rem">
@@ -31,7 +31,8 @@
   </p>
 </div>
 
-<form method="post" action="{{ url_for('channels_edit', cid=channel.id) }}">
+<form method="post" action="{{ url_for('channels.channels_edit', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <section class="card">
     <h2>Основное</h2>
     <label>Номер канала
@@ -254,26 +255,30 @@
               </td>
               <td class="mosaic-actions">
                 <form id="cam-form-{{ cam.id }}" method="post"
-                      action="{{ url_for('mosaic_update_camera', cid=channel.id, sid=cam.id) }}">
+                      action="{{ url_for('mosaic.mosaic_update_camera', cid=channel.id, sid=cam.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 </form>
                 <button type="submit" form="cam-form-{{ cam.id }}"
                         class="ch-btn ch-btn-icon" title="Сохранить">💾</button>
                 <form method="post"
-                      action="{{ url_for('mosaic_move_camera', cid=channel.id, sid=cam.id, direction='up') }}"
+                      action="{{ url_for('mosaic.mosaic_move_camera', cid=channel.id, sid=cam.id, direction='up') }}"
                       style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="ch-btn ch-btn-icon"
                           {% if loop.first %}disabled{% endif %} title="Вверх">↑</button>
                 </form>
                 <form method="post"
-                      action="{{ url_for('mosaic_move_camera', cid=channel.id, sid=cam.id, direction='down') }}"
+                      action="{{ url_for('mosaic.mosaic_move_camera', cid=channel.id, sid=cam.id, direction='down') }}"
                       style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="ch-btn ch-btn-icon"
                           {% if loop.last %}disabled{% endif %} title="Вниз">↓</button>
                 </form>
                 <form method="post"
-                      action="{{ url_for('mosaic_remove_camera', cid=channel.id, sid=cam.id) }}"
+                      action="{{ url_for('mosaic.mosaic_remove_camera', cid=channel.id, sid=cam.id) }}"
                       style="display:inline"
                       onsubmit="return confirm('Удалить камеру «{{ cam.label or cam.stream_url }}»?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="ch-btn ch-btn-icon ch-btn-danger"
                           title="Удалить">🗑</button>
                 </form>
@@ -288,7 +293,8 @@
 
     {% if mosaic_cameras|length < 9 %}
       <h3 style="margin-top:1.2rem">Добавить камеру</h3>
-      <form method="post" action="{{ url_for('mosaic_add_camera', cid=channel.id) }}">
+      <form method="post" action="{{ url_for('mosaic.mosaic_add_camera', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Название (отображается в углу ячейки)
           <input name="label" placeholder="Калитка, Двор, Гараж…">
         </label>
@@ -312,7 +318,7 @@
 
   <div class="form-actions">
     <button type="submit" class="btn-start">Сохранить</button>
-    <a href="{{ url_for('channels_page') }}" class="btn-link">Отмена</a>
+    <a href="{{ url_for('channels.channels_page') }}" class="btn-link">Отмена</a>
   </div>
 </form>
 
@@ -325,8 +331,9 @@
     перезаписывается при повторной загрузке.
   </p>
   <form method="post"
-        action="{{ url_for('channels_pip_upload', cid=channel.id) }}"
+        action="{{ url_for('channels.channels_pip_upload', cid=channel.id) }}"
         enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Файл (PNG или JPEG, ≤ 5 МБ)
       <input type="file" name="pip_file" accept="image/png,image/jpeg">
     </label>

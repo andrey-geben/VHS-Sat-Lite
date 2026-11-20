@@ -52,7 +52,11 @@ Smoke-тесты используют временную БД и не трога
 
 ## Структура проекта
 VHS-Sat-Lite/
-├── server.py — точка входа, Flask + waitress
+├── server.py — точка входа, Flask + waitress, регистрация blueprint’ов
+├── routes/ — blueprint’ы: main, channels, iptv, overlays, mosaic, events, epg, system, api
+├── helpers.py — общие помощники маршрутов (валидация, to_int/to_bool)
+├── runtime.py — общие объекты (supervisor, DATA_DIR)
+├── csrf.py — CSRF-защита POST-форм
 ├── viewer.py — второй Flask-app (порт 8301), HLS-плеер
 ├── supervisor.py — управление процессами FFmpeg (1 на канал)
 ├── overlays.py — построение filter_complex для ticker/PiP

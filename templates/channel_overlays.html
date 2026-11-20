@@ -3,8 +3,8 @@
 {% block content %}
 <div class="section-head">
   <h1>🎬 Оверлеи — {{ channel.name }}</h1>
-  <a href="{{ url_for('channels_page') }}" class="muted small">← к списку каналов</a>
-  <a href="{{ url_for('channel_edit_form', cid=channel.id) }}" class="muted small" style="margin-left:1rem">✎ к настройкам канала</a>
+  <a href="{{ url_for('channels.channels_page') }}" class="muted small">← к списку каналов</a>
+  <a href="{{ url_for('channels.channel_edit_form', cid=channel.id) }}" class="muted small" style="margin-left:1rem">✎ к настройкам канала</a>
 </div>
 
 <div class="channel-card {{ 'running' if channel.running else '' }}" style="margin-bottom:1rem">
@@ -73,14 +73,16 @@
             <td><input name="bgcolor" value="{{ t.bgcolor }}" style="width:100%" form="ticker-upd-{{ t.id }}"></td>
             <td>
               <form id="ticker-upd-{{ t.id }}" method="post"
-                    action="{{ url_for('channel_ticker_update', cid=channel.id, tid=t.id) }}">
+                    action="{{ url_for('overlays.channel_ticker_update', cid=channel.id, tid=t.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               </form>
               <button type="submit" form="ticker-upd-{{ t.id }}"
                       class="ch-btn ch-btn-icon" title="Сохранить">💾</button>
               <form method="post"
-                    action="{{ url_for('channel_ticker_delete', cid=channel.id, tid=t.id) }}"
+                    action="{{ url_for('overlays.channel_ticker_delete', cid=channel.id, tid=t.id) }}"
                     style="display:inline"
                     onsubmit="return confirm('Удалить бегущую строку «{{ t.name }}» и все её расписания?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="ch-btn ch-btn-icon ch-btn-danger"
                         title="Удалить">🗑</button>
               </form>
@@ -94,7 +96,8 @@
   {% endif %}
 
   <h3 style="margin-top:1.4rem">Добавить бегущую строку</h3>
-  <form method="post" action="{{ url_for('channel_ticker_create', cid=channel.id) }}">
+  <form method="post" action="{{ url_for('overlays.channel_ticker_create', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Название
       <input name="name" required placeholder="Ночной режим, Реклама, …" size="40">
     </label>
@@ -131,7 +134,8 @@
   <p class="muted small">
     Показывается, когда нет активного расписания PiP.
   </p>
-  <form method="post" action="{{ url_for('channel_overlays_save', cid=channel.id) }}">
+  <form method="post" action="{{ url_for('overlays.channel_overlays_save', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="checkbox-label">
       <input type="checkbox" name="pip_enabled"
              {% if channel.pip_enabled %}checked{% endif %}>
@@ -172,8 +176,9 @@
     Сохраняется как <code>data/pip/{{ channel.id }}.png</code>.
   </p>
   <form method="post"
-        action="{{ url_for('channels_pip_upload', cid=channel.id) }}"
+        action="{{ url_for('channels.channels_pip_upload', cid=channel.id) }}"
         enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Файл (PNG или JPEG, ≤ 5 МБ)
       <input type="file" name="pip_file" accept="image/png,image/jpeg">
     </label>
@@ -236,8 +241,9 @@
               {% endif %}
                         <td>
               <form method="post"
-                    action="{{ url_for('channel_overlays_schedule_toggle', cid=channel.id, sid=s.id) }}"
+                    action="{{ url_for('overlays.channel_overlays_schedule_toggle', cid=channel.id, sid=s.id) }}"
                     style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="ch-btn ch-btn-icon"
                         title="{% if s.enabled %}Выключить{% else %}Включить{% endif %}">
                   {% if s.enabled %}✓{% else %}✗{% endif %}
@@ -245,9 +251,10 @@
               </form>
               {% if s.kind == 'pip_image' %}
                 <form method="post"
-                      action="{{ url_for('channel_overlays_schedule_upload', cid=channel.id, sid=s.id) }}"
+                      action="{{ url_for('overlays.channel_overlays_schedule_upload', cid=channel.id, sid=s.id) }}"
                       enctype="multipart/form-data"
                       style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <label style="cursor:pointer" title="Загрузить PNG/JPEG">
                     📤<input type="file" name="pip_file" accept="image/png,image/jpeg"
                              onchange="this.form.submit()" style="display:none">
@@ -255,9 +262,10 @@
                 </form>
               {% endif %}
               <form method="post"
-                    action="{{ url_for('channel_overlays_schedule_delete', cid=channel.id, sid=s.id) }}"
+                    action="{{ url_for('overlays.channel_overlays_schedule_delete', cid=channel.id, sid=s.id) }}"
                     style="display:inline"
                     onsubmit="return confirm('Удалить расписание?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="ch-btn ch-btn-icon ch-btn-danger"
                         title="Удалить">🗑</button>
               </form>
@@ -273,7 +281,8 @@
   <h3 style="margin-top:1.4rem">Добавить ticker-расписание</h3>
   {% if tickers %}
     <form method="post"
-          action="{{ url_for('channel_overlays_schedule_create', cid=channel.id) }}">
+          action="{{ url_for('overlays.channel_overlays_schedule_create', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="kind" value="ticker">
       <label>Бегущая строка
         <select name="ticker_id" required>
@@ -315,7 +324,8 @@
     отдельной формой на шаге 7.3.
   </p>
   <form method="post"
-        action="{{ url_for('channel_overlays_schedule_create', cid=channel.id) }}">
+        action="{{ url_for('overlays.channel_overlays_schedule_create', cid=channel.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="kind" value="pip_image">
     <label>Начало (HH:MM)
       <input name="start_time" type="time" required value="08:00">
