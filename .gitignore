@@ -42,3 +42,15 @@ desktop.ini
 # Temp (в корне; тесты в tests/ не игнорируются)
 /test_*
 *.tmp
+
+# Build artifacts (не коммитим)
+dist/
+build/
+.git.backup/
+
+# APK распространяется отдельно (release), не через git
+downloads/*.apk
+
+# Build logs
+build.log
+build.err.log

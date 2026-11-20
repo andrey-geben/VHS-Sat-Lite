@@ -119,6 +119,27 @@ class VhsSmokeTest(unittest.TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIsNone(db.get_channel(cid))
 
+
+    def test_event_log_rotation(self):
+        import event_writer as ew
+
+        class Cfg:
+            def get(self, section, key, default=None):
+                values = {"level": "INFO", "events_max_bytes": 200,
+                          "events_backup_count": 2}
+                return values.get(key, default)
+
+        old = ew.config
+        ew.config = Cfg()
+        try:
+            path = TMP / "events_rotate.jsonl"
+            writer = ew.EventWriter(path)
+            for _ in range(30):
+                writer.info("test", "x" * 40)
+            self.assertTrue(Path(str(path) + ".1").exists())
+        finally:
+            ew.config = old
+
     def test_pages_render(self):
         client = self._client()
         for url in ("/", "/channels", "/settings", "/about", "/events"):

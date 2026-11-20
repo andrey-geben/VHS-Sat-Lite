@@ -42,8 +42,31 @@ class EventWriter:
             record["extra"] = extra
         line = json.dumps(record, ensure_ascii=False)
         with self._lock:
+            self._rotate_if_needed()
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
+    def _rotate_if_needed(self) -> None:
+        """Ротация JSONL: не даём журналу расти бесконечно."""
+        try:
+            max_bytes = int(config.get("logging", "events_max_bytes", default=5 * 1024 * 1024))
+            backups = int(config.get("logging", "events_backup_count", default=3))
+        except Exception:  # noqa: BLE001
+            max_bytes, backups = 5 * 1024 * 1024, 3
+        if max_bytes <= 0 or backups <= 0 or not self.path.exists():
+            return
+        try:
+            if self.path.stat().st_size < max_bytes:
+                return
+            for i in range(backups - 1, 0, -1):
+                src = Path(f"{self.path}.{i}")
+                dst = Path(f"{self.path}.{i + 1}")
+                if src.exists():
+                    src.replace(dst)
+            self.path.replace(Path(f"{self.path}.1"))
+            self.path.touch()
+        except OSError:
+            pass
+
     def info(self, source: str, message: str, **kw: Any) -> None:
         self.write("INFO", source, message, **kw)
 
