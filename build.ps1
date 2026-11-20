@@ -72,7 +72,7 @@ if ($env:VHS_INCLUDE_APK -eq "1") {
 }
 
 Write-Host "=== Copying docs and config example ===" -ForegroundColor Cyan
-foreach ($doc in @("README.md", "CHANGELOG.md", "config.example.yaml")) {
+foreach ($doc in @("README.md", "CHANGELOG.md", "config.example.yaml", "LICENSE")) {
     if (Test-Path $doc) {
         Copy-Item $doc "$DistDir\$doc" -Force
         Write-Host "  $doc"

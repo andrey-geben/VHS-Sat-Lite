@@ -10,6 +10,7 @@
 - `/events?limit=...` не падает на некорректном значении.
 - `create_channel` подставляет значения по умолчанию.
 - Журнал `logs/events.jsonl` ротируется (5 МБ × 3).
+- Добавлена лицензия MIT (LICENSE).
 - Версия сервера приведена к `1.1.0`, добавлены `config.example.yaml` и этот CHANGELOG.
 - Сборка: zip именуется по версии, в него попадают README/CHANGELOG/config.example,
   debug-APK по умолчанию не включается (`VHS_INCLUDE_APK=1` — только для локальной проверки).
