@@ -19,7 +19,7 @@ from csrf import csrf_protect, get_csrf_token
 from db import init_db
 from event_writer import events
 from frozen_utils import APP_ROOT, RESOURCE_ROOT
-from runtime import DATA_DIR
+from runtime import DATA_DIR, supervisor
 from settings_page import settings_bp
 
 from routes.api import bp as api_bp
@@ -210,3 +210,7 @@ def main() -> None:
         events.warn("server", "waitress not installed — falling back to Flask dev server")
         print(" * WARNING: waitress not installed, using Flask dev server")
         app.run(host=host, port=admin_port, debug=False, threaded=True)
+
+
+if __name__ == "__main__":
+    main()
