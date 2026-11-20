@@ -39,7 +39,6 @@ Thumbs.db
 .DS_Store
 desktop.ini
 
-# Temp
-test_*
+# Temp (в корне; тесты в tests/ не игнорируются)
+/test_*
 *.tmp
-Новая папка/

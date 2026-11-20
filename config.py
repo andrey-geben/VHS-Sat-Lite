@@ -27,7 +27,7 @@ DEFAULTS: dict[str, Any] = {
         "secret_key": "",
     },
     "about": {
-        "version": "0.3.0-dev",
+        "version": "1.0.0",
         "author": "Andrew Genben",
         "contact": "",
         "repo_url": "",

@@ -276,8 +276,33 @@ def get_channel(channel_id: int) -> dict | None:
         return dict(row) if row else None
 
 
+_CHANNEL_DEFAULTS = {
+    "source_type": "folder",
+    "rotation": "random",
+    "reshuffle_on_loop": 0,
+    "file_extensions": "mp4,mkv,avi,ts,mov,m4v,webm",
+    "codec_strategy": "auto",
+    "bumper_enabled": 1,
+    "bumper_duration_sec": 5,
+    "hls_enabled": 1,
+    "multicast_enabled": 0,
+    "multicast_addr": "239.1.1.1",
+    "multicast_port": 5000,
+    "preview_enabled": 0,
+    "preview_lead_sec": 60,
+    "pip_enabled": 0,
+    "pip_mode": "none",
+    "pip_source": "",
+    "pip_position": "top-right",
+    "pip_width": 320,
+    "pip_margin": 16,
+    "enabled": 1,
+}
+
+
 def create_channel(data: dict) -> int:
-    values = [data.get(f) for f in _CHANNEL_FIELDS]
+    row = {**_CHANNEL_DEFAULTS, **(data or {})}
+    values = [row.get(f) for f in _CHANNEL_FIELDS]
     cols = ", ".join(_CHANNEL_FIELDS)
     ph = ", ".join("?" * len(_CHANNEL_FIELDS))
     with get_db() as conn:

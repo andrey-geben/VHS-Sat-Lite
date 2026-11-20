@@ -182,7 +182,11 @@ def create_lite_app() -> Flask:
     # ---------- setup ----------
     @app.route("/setup", methods=["GET", "POST"])
     def setup():
-        if config.has_users() and request.method == "GET":
+        # Повторная первичная настройка запрещена: иначе любой в сети может
+        # перезаписать администратора через POST /setup.
+        if config.has_users():
+            if request.method == "POST":
+                flash("Первичная настройка уже выполнена", "warn")
             return redirect(url_for("dashboard"))
         if request.method == "POST":
             username = request.form.get("username", "").strip()
@@ -793,6 +797,16 @@ def create_lite_app() -> Flask:
             abort(404)
         supervisor.stop(cid)
         delete_channel(cid)
+        # Убираем файлы канала, иначе HLS-сегменты копятся на диске.
+        for sub, name in (("hls", str(cid)), ("ticker", f"{cid}.txt")):
+            target = DATA_DIR / sub / name
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+                elif target.exists():
+                    target.unlink()
+            except OSError:
+                pass
         events.info("channels", f"deleted channel {cid}")
         flash(f"Канал «{ch['name']}» удалён", "info")
         return redirect(url_for("channels_page"))
@@ -955,7 +969,11 @@ def create_lite_app() -> Flask:
     @app.route("/events")
     @login_required
     def events_page():
-        limit = int(request.args.get("limit", 200))
+        try:
+            limit = int(request.args.get("limit", 200))
+        except (TypeError, ValueError):
+            limit = 200
+        limit = max(1, min(limit, 2000))
         return render_template("events.html", events=events.read_tail(limit))
 
     @app.route("/events/clear", methods=["POST"])
