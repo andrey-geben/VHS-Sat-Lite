@@ -274,9 +274,9 @@ HLS-сегменты (`data/hls/`) и логи можно не архивиро�
 Скрипт собирает onedir-сборку, кладёт README/CHANGELOG/`config.example.yaml`,
 создаёт `dist\VHS-Sat-Lite-<версия>.zip` и файл `.sha256`.
 
-Release-APK в архив **не включён**: приложение должно быть подписано release-ключом
-и приложено к GitHub Release отдельно. Для локальной проверки:
-`$env:VHS_INCLUDE_APK=1; .\build.ps1`.
+Подписанный release-APK положите в `downloads\app.apk` и собирайте с
+`$env:VHS_INCLUDE_APK=1; .\build.ps1` — тогда он попадёт в zip и будет доступен
+на странице `/download`. Без этого флага APK в архив не включается.
 
 ## Конфиг
 

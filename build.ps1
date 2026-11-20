@@ -67,7 +67,7 @@ if ($env:VHS_INCLUDE_APK -eq "1") {
                      ([math]::Round($apk.Length / 1MB, 1)))
     }
 } else {
-    Write-Host "  APK не включён: release-APK должен быть подписан отдельно и лежать в релизе." -ForegroundColor Yellow
+    Write-Host "  APK не включён. Положите подписанный release-APK в downloads\ и задайте VHS_INCLUDE_APK=1." -ForegroundColor Yellow
     Write-Host "  Для локальной проверки: `$env:VHS_INCLUDE_APK=1; .\build.ps1"
 }
 
